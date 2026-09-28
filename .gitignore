@@ -54,3 +54,6 @@ desktop.ini
 *.tflite
 *.pt
 *.pth
+
+# Task data output
+task/data/*.csv
