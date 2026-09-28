@@ -13,7 +13,7 @@ other crystal silently becomes active. Firing at the inactive crystal changes
 nothing, so once a crystal is depleted it stays empty until the player goes to
 forage the other one. The player can re-aim at any time with LEFT / RIGHT.
 
-One CSV row per trial is appended to foraging_data.csv next to this script.
+One CSV row per trial is appended to data/foraging_data.csv next to this script.
 
 Controls: SPACE = start, LEFT/RIGHT = aim, ESC = quit (data is saved every trial).
 Requires: pygame. numpy is used for sound generation if installed; otherwise a
@@ -64,6 +64,7 @@ METER_CAPACITY = N_TRIALS * P_REWARD
 # ---------------------------------------------------------------------------
 # Data logging
 # ---------------------------------------------------------------------------
+DATA_DIR = "data"
 DATA_FILE = "foraging_data.csv"
 CSV_COLUMNS = [
     "trial",
@@ -228,7 +229,9 @@ class Game:
             big = star_rng.random() < 0.08
             self.stars.append((x, y, color, big))
 
-        self.data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), DATA_FILE)
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), DATA_DIR)
+        os.makedirs(data_dir, exist_ok=True)
+        self.data_path = os.path.join(data_dir, DATA_FILE)
         self.need_header = (not os.path.exists(self.data_path)
                             or os.path.getsize(self.data_path) == 0)
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
