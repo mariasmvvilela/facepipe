@@ -1,0 +1,24 @@
+# facepipe conda environment (Windows 11, NVIDIA GPU, CUDA 12.8 PyTorch build)
+#
+# Create:   conda env create -f environment.yml
+# Then run the one-off OpenCV fix below, and verify with:
+#   conda activate facepipe
+#   pip install --force-reinstall --no-deps opencv-contrib-python==4.9.0.80
+#   python scripts/verify_env.py
+#
+# Why the OpenCV fix: FaceMap needs opencv-python-headless and MediaPipe needs
+# opencv-contrib-python. Both write to the same cv2 folder, so contrib must be
+# installed last to keep its extra modules. Both are pinned to the same version.
+#
+# Do NOT `pip install opencv-python` or upgrade numpy in this env:
+# FaceMap 1.0.8 requires numpy<2 and opencv-python-headless<4.10.
+name: facepipe
+channels:
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      # CUDA builds of torch/torchvision/torchaudio live on PyTorch's own index
+      - --extra-index-url https://download.pytorch.org/whl/cu128
+      - -r requirements-lock.txt

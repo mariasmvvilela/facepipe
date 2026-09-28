@@ -1,0 +1,35 @@
+facepipe environment verification — 2026-09-28 12:22
+Interpreter: C:\Users\Maria\.conda\envs\facepipe\python.exe
+OS: Windows-10-10.0.26200-SP0
+
+Package       Status  Version
+------------  ------  ------------------------------
+Python        OK      3.11.16
+PyTorch       OK      2.11.0+cu128
+torchvision   OK      0.26.0+cu128
+FaceMap       OK      1.0.8
+MediaPipe     OK      1.0.1
+OpenCV (cv2)  OK      4.9.0
+NumPy         OK      1.26.4
+SciPy         OK      1.17.1
+Matplotlib    OK      3.11.2
+scikit-learn  OK      1.9.1
+pandas        OK      3.0.6
+JupyterLab    OK      4.6.4
+PyQt6         OK      6.11.0
+pyqtgraph     OK      0.14.0
+pip           OK      26.2.1
+
+OpenCV distributions installed: {'opencv-python-headless': '4.9.0.80', 'opencv-contrib-python': '4.9.0.80'}
+
+GPU check
+  torch.cuda.is_available(): True
+  Device:        NVIDIA GeForce RTX 3080 Laptop GPU
+  VRAM:          8.0 GB
+  CUDA (torch):  12.8
+  cuDNN:         91900
+  GPU matmul:    OK (1024, 1024)
+
+pip check: No broken requirements found.
+
+RESULT: ALL CHECKS PASSED

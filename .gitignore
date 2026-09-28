@@ -1,0 +1,56 @@
+# Data folders — never commit their contents
+# (folder/* + !folder/.gitkeep keeps the empty folder in the repo;
+#  ignoring "folder/" outright would also hide the .gitkeep)
+raw_video/*
+!raw_video/.gitkeep
+stabilised_video/*
+!stabilised_video/.gitkeep
+facemap_output/*
+!facemap_output/.gitkeep
+mediapipe_output/*
+!mediapipe_output/.gitkeep
+trial_data/*
+!trial_data/.gitkeep
+
+# Large file types regardless of location
+*.mp4
+*.avi
+*.mov
+*.npy
+*.npz
+*.h5
+*.hdf5
+*.pkl
+*.csv
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Jupyter checkpoint files
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Conda and virtual environment folders
+.env
+.venv
+env/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor folders
+.vscode/
+.idea/
+
+# Model files (large, downloadable)
+*.task
+*.tflite
+*.pt
+*.pth
