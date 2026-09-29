@@ -13,7 +13,7 @@ other crystal silently becomes active. Firing at the inactive crystal changes
 nothing, so once a crystal is depleted it stays empty until the player goes to
 forage the other one. The player can re-aim at any time with LEFT / RIGHT.
 
-One CSV row per trial is appended to data/foraging_data.csv next to this script.
+One CSV row per trial is appended to foraging_data.csv next to this script.
 
 Controls: SPACE = start, LEFT/RIGHT = aim, ESC = quit (data is saved every trial).
 Requires: pygame. numpy is used for sound generation if installed; otherwise a

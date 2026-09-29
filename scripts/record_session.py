@@ -4,6 +4,10 @@ Shows a live preview, records face video to a timestamped session folder in
 raw_video/, writes session_info.txt and (optionally) copies the task's trial
 CSV in as task_events.csv, so the folder is ready for the pipeline.
 
+    recording_YYYY-MM-DD_HH-MM-SS.avi             the video
+    recording_YYYY-MM-DD_HH-MM-SS_frametimes.csv  frame_idx, wall-clock time of each
+                                                  written frame (taken right after cap.read())
+
 Keys (preview window must be focused):
     S   = start recording
     Q   = stop recording and save
@@ -123,6 +127,7 @@ def main():
     cancelled = False
     stop_reason = None
     writer = None
+    frametimes_file = None
     session_dir = None
     start_dt = None
     frames = 0
@@ -137,6 +142,7 @@ def main():
         while True:
             ok, frame = cap.read()
             now = time.time()
+            frame_wall_clock = datetime.now().isoformat(timespec="microseconds")
 
             if not ok:
                 consecutive_fails += 1
@@ -159,6 +165,7 @@ def main():
                     t_first = now
                 t_last = now
                 writer.write(frame)
+                frametimes_file.write("{},{}\n".format(frames, frame_wall_clock))
                 frames += 1
                 elapsed = now - t_first
 
@@ -184,14 +191,22 @@ def main():
                 session_name = "session_" + start_dt.strftime("%Y-%m-%d_%H-%M-%S")
                 session_dir = os.path.join(RAW_VIDEO_DIR, session_name)
                 os.makedirs(session_dir, exist_ok=False)
-                video_path = os.path.join(session_dir, "video.avi")
+                # The pipeline reads the start time from this filename; the
+                # _frametimes.csv sidecar gives the exact time of every frame.
+                video_stem = "recording_" + start_dt.strftime("%Y-%m-%d_%H-%M-%S")
+                video_name = video_stem + ".avi"
+                frametimes_name = video_stem + "_frametimes.csv"
+                video_path = os.path.join(session_dir, video_name)
                 fourcc = cv2.VideoWriter_fourcc(*"XVID")
                 writer = cv2.VideoWriter(video_path, fourcc, writer_fps, (width, height))
                 if not writer.isOpened():
                     print("ERROR: could not create video file: {}".format(video_path))
+                    writer = None
                     shutil.rmtree(session_dir, ignore_errors=True)
                     session_dir = None
                     break
+                frametimes_file = open(os.path.join(session_dir, frametimes_name), "w")
+                frametimes_file.write("frame_idx,wall_clock_timestamp\n")
                 recording = True
                 print("Recording started -> raw_video\\{}\\".format(session_name))
             elif key in (ord("q"), ord("Q")):
@@ -213,6 +228,8 @@ def main():
     finally:
         if writer is not None:
             writer.release()
+        if frametimes_file is not None:
+            frametimes_file.close()
         cap.release()
         cv2.destroyAllWindows()
 
@@ -264,8 +281,9 @@ def main():
     # --- Step 6: summary --------------------------------------------------------------
     rel_session = os.path.relpath(session_dir, PROJECT_DIR)
     print("\nSession saved to: {}\\".format(rel_session))
-    print("  video.avi        — {} frames, {:.1f} seconds, {:.2f}fps".format(
-        frames, duration, actual_fps))
+    print("  {} — {} frames, {:.1f} seconds, {:.2f}fps".format(
+        video_name, frames, duration, actual_fps))
+    print("  {} — {} frame timestamps".format(frametimes_name, frames))
     print("  session_info.txt — written")
     print("  task_events.csv  — {}".format(csv_status))
     if read_fails or timing_gaps:
