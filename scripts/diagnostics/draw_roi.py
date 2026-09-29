@@ -1,12 +1,12 @@
 """Preview the FaceMap ROIs on a frame of the stabilised video.
 
-Draws every ROI in run_facemap.ROIS (one colour each) plus reference lines on
+Draws every ROI in st3a_run_facemap.ROIS (one colour each) plus reference lines on
 stabilised frame 1000 and saves stabilised_video/<session>/roi_two_panel_preview.png.
 Also checks, using the stage-1 landmarks and stage-2 transforms, where the chin
 and lower eyelids actually sit in the crop.
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\draw_roi.py
+    python scripts\\diagnostics\\draw_roi.py
 """
 import sys
 from pathlib import Path
@@ -14,9 +14,10 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from run_facemap import ROIS, SESSION
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # scripts/, for the stage modules
+from st3a_run_facemap import ROIS, SESSION  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
+PROJECT_DIR = Path(__file__).resolve().parents[2]
 STAB_DIR = PROJECT_DIR / "stabilised_video" / SESSION
 LANDMARKS = PROJECT_DIR / "mediapipe_output" / SESSION / "landmarks.npy"
 OUTPUT_NAME = "roi_two_panel_preview.png"

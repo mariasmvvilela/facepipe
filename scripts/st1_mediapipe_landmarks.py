@@ -9,8 +9,8 @@ and saves to mediapipe_output/<session folder name>/:
     summary.json        session metadata
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\mediapipe_landmarks.py
-    python scripts\\mediapipe_landmarks.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st1_mediapipe_landmarks.py
+    python scripts\\st1_mediapipe_landmarks.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
 """
 import argparse
 import json
@@ -29,8 +29,8 @@ DEFAULT_SESSION = PROJECT_DIR / "raw_video" / "session_20260928_161612"
 MODEL_PATH = PROJECT_DIR / "scripts" / "face_landmarker.task"
 OUTPUT_ROOT = PROJECT_DIR / "mediapipe_output"
 
-N_LANDMARKS = 478
-PROGRESS_EVERY = 100
+N_LANDMARKS = 478 # maximum number of landmarks returned by MediaPipe FaceLandmarker
+PROGRESS_EVERY = 100 # print progress every N frames
 
 # Head-pose correspondences: MediaPipe landmark index -> canonical 3D point.
 # The 3D points are in OpenCV's camera convention (x = image right, y = image down,

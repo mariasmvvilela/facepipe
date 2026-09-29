@@ -10,11 +10,22 @@ MediaPipe geometric stabilisation and FaceMap SVD decomposition, then uses
 accumulated trial-level features to predict leave decisions.
 
 ## Pipeline stages
-1. `mediapipe_landmarks.py` — detect 478 face landmarks + head pose per frame
-2. `stabilise_video.py` — affine warp each frame to a canonical face template
-3. `run_facemap.py` — SVD on motion energy, extract movement PCs
-4. `extract_trial_features.py` — align to task events, build accumulated feature matrix
-5. `classify_leave.py` — predict leave decision from face + eye features
+Two branches turn the raw video into per-frame face features; both feed stage 4.
+
+```
+raw video ─┬─ st1 MediaPipe ─ st2 stabilise ─ st3a FaceMap ──┬─ st4 trial features ─ st5 classify
+           └─ st3b OpenFace (own 3D alignment) ──────────────┘
+```
+
+1. `st1_mediapipe_landmarks.py` — detect 478 face landmarks + head pose per frame
+2. `st2_stabilise_video.py` — similarity-warp each frame to a canonical face template, mask the face oval
+3. a. `st3a_run_facemap.py` — SVD on motion energy, extract movement PCs
+   b. `st3b_run_openface.py` — OpenFace 2.2 action units, head pose and gaze from the raw video *(planned)*
+4. `st4_extract_trial_features.py` — align to task events, build accumulated feature matrix
+5. `st5_classify_leave.py` — predict leave decision from face + eye features *(planned)*
+
+Diagnostics (not part of the pipeline) live in `scripts/diagnostics/`:
+`check_pc_head_motion.py` (FaceMap PCs vs head pose), `plot_facemap_masks.py`, `draw_roi.py`.
 
 ## Environment setup
 Requires conda and an NVIDIA GPU driver supporting CUDA 12.8+. To recreate the exact environment
@@ -42,9 +53,11 @@ facepipe_project/
 ├── stabilised_video/       # affine-stabilised face crops (not tracked)
 ├── facemap_output/         # FaceMap SVD results (not tracked)
 ├── mediapipe_output/       # landmark arrays and head pose (not tracked)
+├── openface_output/        # OpenFace action units, pose, gaze (not tracked)
 ├── trial_data/             # trial-level feature matrices (not tracked)
 ├── notebooks/              # exploratory Jupyter notebooks
-├── scripts/                # pipeline scripts
+├── scripts/                # pipeline stages (st1–st5)
+│   └── diagnostics/        # quality checks and plots
 ├── environment.yml         # conda environment specification
 └── requirements-lock.txt   # exact pinned pip versions
 ```

@@ -19,7 +19,7 @@ Notes on the FaceMap 1.0.8 API (differs from older docs / the GUI):
   * Motion energy is always mean-subtracted (FaceMap subtracts the average motion frame).
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\run_facemap.py
+    python scripts\\st3a_run_facemap.py
 """
 import json
 import sys
@@ -77,7 +77,7 @@ def roi_motion_sum_of_squares(video_path, rois, avgmotion):
 
 def main():
     if not STABILISED_VIDEO.is_file():
-        sys.exit("ERROR: stabilised video not found (run stabilise_video.py first): {}".format(
+        sys.exit("ERROR: stabilised video not found (run st2_stabilise_video.py first): {}".format(
             STABILISED_VIDEO))
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

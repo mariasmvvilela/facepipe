@@ -293,7 +293,7 @@ def main():
         print("  note: measured fps ({:.2f}) differs from the video file's fps ({:.2f}); "
               "use actual_fps for timing.".format(actual_fps, writer_fps))
     print("\nReady for pipeline. Next step:")
-    print("  python scripts\\mediapipe_landmarks.py --session {}".format(rel_session))
+    print("  python scripts\\st1_mediapipe_landmarks.py --session {}".format(rel_session))
 
 
 if __name__ == "__main__":

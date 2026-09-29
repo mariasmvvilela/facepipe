@@ -11,8 +11,8 @@ set to neutral grey. Writes to stabilised_video/<session>/:
     summary.json          session metadata + stabilisation quality metrics
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\stabilise_video.py
-    python scripts\\stabilise_video.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st2_stabilise_video.py
+    python scripts\\st2_stabilise_video.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
 """
 import argparse
 import json
@@ -120,7 +120,7 @@ def main():
     video_path = find_video(session_dir)
     landmarks_path = LANDMARK_ROOT / session_dir.name / "landmarks.npy"
     if not landmarks_path.is_file():
-        sys.exit("ERROR: landmarks not found (run mediapipe_landmarks.py first): {}".format(
+        sys.exit("ERROR: landmarks not found (run st1_mediapipe_landmarks.py first): {}".format(
             landmarks_path))
     output_dir = OUTPUT_ROOT / session_dir.name
     output_dir.mkdir(parents=True, exist_ok=True)

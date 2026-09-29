@@ -23,7 +23,7 @@ Definitions (from the task code, not the column names):
   * The last trial has no next choice, so it has no label and is dropped.
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\extract_trial_features.py
+    python scripts\\st4_extract_trial_features.py
 """
 import json
 import re

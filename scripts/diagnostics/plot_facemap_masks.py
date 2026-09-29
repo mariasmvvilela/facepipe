@@ -3,11 +3,13 @@
 Saves facemap_output/<session>/spatial_masks_<suffix>.png, one 2x3 grid per ROI
 (red = positive, blue = negative; the sign of an SVD component is arbitrary).
 
-Usage (inside the facepipe env, from the project folder, after run_facemap.py):
-    python scripts\\plot_facemap_masks.py
+Usage (inside the facepipe env, from the project folder, after st3a_run_facemap.py):
+    python scripts\\diagnostics\\plot_facemap_masks.py
 """
 import os
+import sys
 import time
+from pathlib import Path
 
 import cv2
 import matplotlib
@@ -16,7 +18,8 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-from run_facemap import OUTPUT_DIR, ROIS, SBIN, SESSION, STABILISED_VIDEO  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # scripts/, for the stage modules
+from st3a_run_facemap import OUTPUT_DIR, ROIS, SBIN, SESSION, STABILISED_VIDEO  # noqa: E402
 
 FILE_SUFFIX = {"eyes_brows": "eyes", "lower_face": "lower"}
 N_MEAN_FRAMES = 300
