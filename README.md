@@ -9,6 +9,16 @@ data (Pupil Labs) are recorded. The pipeline extracts facial motion features usi
 MediaPipe geometric stabilisation and FaceMap SVD decomposition, then uses
 accumulated trial-level features to predict leave decisions.
 
+## Recording a session
+```
+python scripts\record_space_shooter.py --participant P01
+```
+Checks camera framing, launches the Space Shooter task (`task/space_shooter.py`), records
+the webcam from the moment SPACE is pressed on the start screen until the game-over screen,
+and writes a pipeline-ready `raw_video/session_YYYYMMDD_HHMMSS/` folder (video, per-frame
+timestamps, `task_events.csv`, `task_markers.csv`, `session_info.txt`).
+`record_session.py` is the manual (S/Q keys) recorder for other tasks.
+
 ## Pipeline stages
 Two branches turn the raw video into per-frame face features; both feed stage 4.
 

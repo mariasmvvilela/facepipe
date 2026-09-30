@@ -38,12 +38,17 @@ except ImportError as e:
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW_VIDEO_DIR = os.path.join(PROJECT_DIR, "raw_video")
 
-CAMERA_INDICES = [1, 0]          # external USB camera first, then built-in
-REQUEST_WIDTH, REQUEST_HEIGHT = 1280, 720
-REQUEST_FPS = 30
+# The laptop's Integrated Camera is disabled in Device Manager, so the Rokoko
+# Headcam is index 0. If the integrated camera is re-enabled the order can change;
+# the resolution check in open_camera() warns about that.
+CAMERA_INDICES = [0]
+# Rokoko Headcam's largest mode (portrait); measured 59.9 fps sustained, and XVID
+# encodes it at ~88 fps on this PC. Other modes: 960x1280 and 768x1024, also 60 fps.
+REQUEST_WIDTH, REQUEST_HEIGHT = 1200, 1600
+REQUEST_FPS = 60
 MAX_DURATION_S = 10 * 60         # safety cap
 PROGRESS_EVERY_S = 5
-MAX_CONSECUTIVE_FAILS = 100      # ~3 s of failed reads -> camera is gone, stop
+MAX_CONSECUTIVE_FAILS = 100      # ~2 s of failed reads -> camera is gone, stop
 GAP_FACTOR = 1.5                 # frame interval > 1.5x expected counts as a gap
 
 WINDOW = "facepipe recording (S = start, Q = stop & save, ESC = cancel)"
@@ -61,8 +66,12 @@ def open_camera():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, REQUEST_WIDTH)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, REQUEST_HEIGHT)
         cap.set(cv2.CAP_PROP_FPS, REQUEST_FPS)
-        ok, _ = cap.read()   # some indices "open" but never deliver frames
+        ok, frame = cap.read()   # some indices "open" but never deliver frames
         if ok:
+            h, w = frame.shape[:2]
+            if (w, h) != (REQUEST_WIDTH, REQUEST_HEIGHT):
+                print("WARNING: camera {} gives {}x{}, not the Rokoko Headcam's max {}x{}. "
+                      "Is this the right camera?".format(index, w, h, REQUEST_WIDTH, REQUEST_HEIGHT))
             return cap, index
         cap.release()
     return None, None

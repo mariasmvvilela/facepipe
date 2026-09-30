@@ -81,6 +81,8 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     df_all = pd.read_csv(TASK_CSV)
+    # task/space_shooter.py calls the hidden active site active_ufo
+    df_all = df_all.rename(columns={"active_ufo": "active_crystal"})
     df_all["timestamp"] = pd.to_datetime(df_all["timestamp"])
     eyes_pcs = np.load(EYES_PCS)[:, :N_PCS]
     lower_pcs = np.load(LOWER_PCS)[:, :N_PCS]
