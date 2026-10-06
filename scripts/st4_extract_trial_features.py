@@ -25,6 +25,7 @@ Definitions (from the task code, not the column names):
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st4_extract_trial_features.py
 """
+import argparse
 import json
 import re
 import sys
@@ -36,14 +37,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-SESSION = "session_20260928_161612"
-SESSION_DIR = PROJECT_DIR / "raw_video" / SESSION
-TASK_CSV = SESSION_DIR / "task_events.csv"
-EYES_PCS = PROJECT_DIR / "facemap_output" / SESSION / "eyes_brows_PCs.npy"
-LOWER_PCS = PROJECT_DIR / "facemap_output" / SESSION / "lower_face_PCs.npy"
-HEAD_POSE = PROJECT_DIR / "mediapipe_output" / SESSION / "head_pose.npy"
-MEDIAPIPE_SUMMARY = PROJECT_DIR / "mediapipe_output" / SESSION / "summary.json"
-OUTPUT_DIR = PROJECT_DIR / "trial_data" / SESSION
+DEFAULT_SESSION = "session_20260928_161612"
 
 N_PCS = 10
 HALF_WINDOW_S = 0.25   # window = trial timestamp +/- 250 ms, cut at the next aim change
@@ -74,6 +68,18 @@ def window_mean(values, start, end):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--session", default=DEFAULT_SESSION,
+                        help="session folder name (or path) in raw_video/")
+    SESSION = Path(parser.parse_args().session).name
+    SESSION_DIR = PROJECT_DIR / "raw_video" / SESSION
+    TASK_CSV = SESSION_DIR / "task_events.csv"
+    EYES_PCS = PROJECT_DIR / "facemap_output" / SESSION / "eyes_brows_PCs.npy"
+    LOWER_PCS = PROJECT_DIR / "facemap_output" / SESSION / "lower_face_PCs.npy"
+    HEAD_POSE = PROJECT_DIR / "mediapipe_output" / SESSION / "head_pose.npy"
+    MEDIAPIPE_SUMMARY = PROJECT_DIR / "mediapipe_output" / SESSION / "summary.json"
+    OUTPUT_DIR = PROJECT_DIR / "trial_data" / SESSION
+
     # --- Step 1: load --------------------------------------------------------------
     for path in (TASK_CSV, EYES_PCS, LOWER_PCS, HEAD_POSE, MEDIAPIPE_SUMMARY):
         if not path.is_file():

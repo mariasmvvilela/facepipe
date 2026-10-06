@@ -10,9 +10,17 @@ set to neutral grey. Writes to stabilised_video/<session>/:
     transforms.npy        (n_frames, 2, 3) float32 per-frame warp matrices, NaN = failed
     summary.json          session metadata + stabilisation quality metrics
 
+--fixed (head-mounted camera): one transform and one face-oval mask, both from the
+session-median landmarks, for every frame. The face doesn't move in the image, so a
+per-frame warp would only add MediaPipe landmark noise, and with these anchors that
+noise follows gaze (the eye corners shift when the participant looks left/right),
+which would put a choice-correlated shift into the video. Check stability first with
+diagnostics/check_camera_stability.py.
+
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\stabilise_video.py
-    python scripts\\stabilise_video.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st2_stabilise_video.py
+    python scripts\\st2_stabilise_video.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st2_stabilise_video.py --session raw_video\\session_YYYYMMDD_HHMMSS --fixed
 """
 import argparse
 import json
@@ -112,6 +120,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", type=Path, default=DEFAULT_SESSION,
                         help="session folder in raw_video/")
+    parser.add_argument("--fixed", action="store_true",
+                        help="head-mounted camera: one median transform + mask for all frames")
     args = parser.parse_args()
 
     session_dir = args.session if args.session.is_absolute() else PROJECT_DIR / args.session
@@ -143,6 +153,11 @@ def main():
     anchor_idx = list(ANCHOR_IDX.values())
     anchors_px = landmarks[:, anchor_idx, :2] * px                 # (n, 4, 2)
     template = build_template(np.nanmedian(anchors_px, axis=0))
+    if args.fixed:
+        median_lm_px = np.nanmedian(landmarks[:, :, :2], axis=0) * px    # (478, 2)
+        M_fixed, _ = cv2.estimateAffinePartial2D(median_lm_px[anchor_idx].astype(np.float32),
+                                                 template, ransacReprojThreshold=FIT_THRESHOLD_PX)
+        print("Mode: fixed (one median transform and face-oval mask for all frames)")
     print("Video: {}  ({} frames, {}x{}, {:.2f} fps)".format(
         video_path.name, n_frames, width, height, fps))
     print("Template anchors (px in 256x256 crop):")
@@ -180,7 +195,9 @@ def main():
 
         src = anchors_px[frame_idx].astype(np.float32)
         M = None
-        if not np.isnan(src).any():
+        if args.fixed:
+            M = M_fixed
+        elif not np.isnan(src).any():
             M, _ = cv2.estimateAffinePartial2D(src, template,
                                                ransacReprojThreshold=FIT_THRESHOLD_PX)
         if M is None:
@@ -191,7 +208,9 @@ def main():
             out = to_gray_bgr(cv2.warpAffine(frame, M, (OUT_SIZE, OUT_SIZE),
                                              flags=cv2.INTER_LINEAR,
                                              borderMode=cv2.BORDER_REPLICATE))
-            out = apply_face_oval(out, landmarks[frame_idx, FACE_OVAL_IDX, :2] * px, M)
+            oval_px = (median_lm_px[FACE_OVAL_IDX] if args.fixed
+                       else landmarks[frame_idx, FACE_OVAL_IDX, :2] * px)
+            out = apply_face_oval(out, oval_px, M)
             residuals[frame_idx] = np.linalg.norm(transform_points(M, src) - template, axis=1)
             chk = landmarks[frame_idx, list(CHECK_IDX.values()), :2] * px
             # "before" in the same 256-crop scale as "after", but without removing motion
@@ -231,6 +250,7 @@ def main():
 
     summary = {
         "session_id": session_id,
+        "mode": "fixed" if args.fixed else "per_frame",
         "input_video": video_path.name,
         "output_video": "stabilised.avi",
         "total_frames": n_frames,

@@ -20,7 +20,9 @@ Notes on the FaceMap 1.0.8 API (differs from older docs / the GUI):
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st3a_run_facemap.py
+    python scripts\\st3a_run_facemap.py --session session_YYYYMMDD_HHMMSS [--full-frame]
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -30,9 +32,7 @@ import numpy as np
 from facemap import process
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-SESSION = "session_20260928_161612"
-STABILISED_VIDEO = PROJECT_DIR / "stabilised_video" / SESSION / "stabilised.avi"
-OUTPUT_DIR = PROJECT_DIR / "facemap_output" / SESSION
+DEFAULT_SESSION = "session_20260928_161612"
 
 # Pixel coordinates in the 256x256 stabilised crop. The split at y=130 sits
 # below the lower eyelids (eyes at y=90) and above the nose tip (y=145).
@@ -40,6 +40,9 @@ ROIS = [
     {"label": "eyes_brows", "x": 70, "y": 55, "w": 126, "h": 75},    # left edge 70 drops hair strand
     {"label": "lower_face", "x": 70, "y": 130, "w": 126, "h": 90},   # below eyes to y=220 (chin)
 ]
+# --full-frame: the whole crop as one ROI. Outside the face oval the stabilised
+# video is constant grey, so it contributes no motion.
+FULL_FRAME_ROI = {"label": "full_face", "x": 0, "y": 0, "w": 256, "h": 256}
 SBIN = 4
 N_COMPONENTS = 100
 
@@ -76,6 +79,21 @@ def roi_motion_sum_of_squares(video_path, rois, avgmotion):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--session", default=DEFAULT_SESSION,
+                        help="session folder name (or path) in raw_video/")
+    parser.add_argument("--full-frame", action="store_true",
+                        help="one SVD over the whole stabilised frame instead of ROIS; "
+                             "saves to facemap_output/<session>/full_face/")
+    args = parser.parse_args()
+    SESSION = Path(args.session).name
+    STABILISED_VIDEO = PROJECT_DIR / "stabilised_video" / SESSION / "stabilised.avi"
+    OUTPUT_DIR = PROJECT_DIR / "facemap_output" / SESSION
+    rois = ROIS
+    if args.full_frame:
+        OUTPUT_DIR = OUTPUT_DIR / FULL_FRAME_ROI["label"]
+        rois = [FULL_FRAME_ROI]
+
     if not STABILISED_VIDEO.is_file():
         sys.exit("ERROR: stabilised video not found (run st2_stabilise_video.py first): {}".format(
             STABILISED_VIDEO))
@@ -87,7 +105,7 @@ def main():
         "ivid": 0,
         "xrange": np.arange(r["x"], r["x"] + r["w"]),
         "yrange": np.arange(r["y"], r["y"] + r["h"]),
-    } for r in ROIS]
+    } for r in rois]
     proc_in = {
         "sbin": SBIN,
         "fullSVD": False,          # ROIs only; skip the full-frame SVD
@@ -99,7 +117,7 @@ def main():
     }
 
     print("Running FaceMap on {}".format(STABILISED_VIDEO))
-    for r in ROIS:
+    for r in rois:
         print("  ROI {label}: x={x} y={y} w={w} h={h}".format(**r))
     print("  sbin={}".format(SBIN))
     proc_path = process.run(
@@ -128,7 +146,7 @@ def main():
                                "ROI motion energy captured by each PC",
     }
     print("\nSaved to {}:".format(OUTPUT_DIR))
-    for k, (r, fm) in enumerate(zip(ROIS, proc["rois"])):
+    for k, (r, fm) in enumerate(zip(rois, proc["rois"])):
         V = proc["motSVD"][k + 1]                    # (n_frames, 500)
         masks = proc["motMask_reshape"][k + 1]       # (h_bin, w_bin, 500)
         # Frame 0 has no motion frame; FaceMap copies frame 1's projection into it.

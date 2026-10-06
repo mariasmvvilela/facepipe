@@ -15,7 +15,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # scripts/, for the stage modules
-from st3a_run_facemap import ROIS, SESSION  # noqa: E402
+from st3a_run_facemap import DEFAULT_SESSION as SESSION, ROIS  # noqa: E402
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 STAB_DIR = PROJECT_DIR / "stabilised_video" / SESSION
