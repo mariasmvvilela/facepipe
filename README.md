@@ -11,13 +11,20 @@ accumulated trial-level features to predict leave decisions.
 
 ## Recording a session
 ```
-python scripts\record_space_shooter.py --participant P01
+conda activate facepipe
+python scripts\recording.py --task space_shooter --participant P01      # player-paced tasks
+python scripts\recording_alien_forager.py --participant P01              # Alien Energy Forager
 ```
-Checks camera framing, launches the Space Shooter task (`task/space_shooter.py`), records
-the webcam from the moment SPACE is pressed on the start screen until the game-over screen,
-and writes a pipeline-ready `raw_video/session_YYYYMMDD_HHMMSS/` folder (video, per-frame
-timestamps, `task_events.csv`, `task_markers.csv`, `session_info.txt`).
-`record_session.py` is the manual (S/Q keys) recorder for other tasks.
+`recording.py --task` takes the stem of any player-paced task in `task/` (space_shooter and
+future tasks like it). The forager fires at a constant rate, so it has its own recorder
+(same recording, plus trial X/N progress and a firing-rate check in `session_info.txt`).
+Both check camera framing, launch `task/<task>.py --out-dir <session folder>`, record the
+webcam from the moment the task is ready (start screen) until the task window is closed,
+and write a `raw_data/session_YYYYMMDD_HHMMSS_<task>/` folder: video, per-frame timestamps,
+`task_events.csv` and `session_info.txt`. `task_events.csv` has one row per event
+(`timestamp, frame_idx, event, side`; events `trial`, `reward`, `fail`, `switch`,
+`system_flip`). The task writes it as it runs, and the recorder adds `frame_idx` at the end.
+Parse folder names with `name.split("_", 3)` → `["session", date, time, task]`.
 
 ## Pipeline stages
 Two branches turn the raw video into per-frame face features; both feed stage 4.
@@ -59,7 +66,7 @@ The third line makes sure MediaPipe's full OpenCV build is the one in place
 
 ```
 facepipe_project/
-├── raw_video/              # original recordings (not tracked by git)
+├── raw_data/              # original recordings (not tracked by git)
 ├── stabilised_video/       # affine-stabilised face crops (not tracked)
 ├── facemap_output/         # FaceMap SVD results (not tracked)
 ├── mediapipe_output/       # landmark arrays and head pose (not tracked)

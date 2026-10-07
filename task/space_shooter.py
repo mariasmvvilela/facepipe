@@ -17,19 +17,23 @@ The ship moves between the two positions while LEFT / RIGHT is held; a full
 crossing takes TRAVEL_TIME_MS. Shooting is only possible once the ship has fully
 arrived at a position.
 
-One CSV row per shot is appended to data/space_shooter_data.csv next to this script.
+Events (trial, reward, fail, switch, system_flip) are written as they happen to
+task_events.csv in the output folder: the folder given by --out-dir (the recorder
+passes the session folder), or, when run standalone, a new
+task/data/space_shooter_YYYYMMDD_HHMMSS/ folder.
 
 Controls: SPACE = start / shoot, LEFT/RIGHT (hold) = move, ESC = quit
-(data is saved every shot).
+(data is saved after every event).
 Requires: pygame. numpy is used for sound generation if installed; otherwise a
 standard-library fallback is used.
 
-facepipe: copied from Documents/task_design/SpaceShooter.py. The only addition is
-emit(): one "FACEPIPE_EVENT <name> <json>" line on stdout per task event (ready,
-task_start, depart, arrive, shot, task_end, quit), which scripts/record_space_shooter.py
-reads to start and stop the webcam recording. The game still runs on its own.
+facepipe: copied from Documents/task_design/SpaceShooter.py. Additions: the event
+log above, --out-dir, and emit(): one "FACEPIPE_EVENT <name> <json>" line on stdout
+per event (ready, task_start, every logged event, task_end, quit), which
+scripts/recording.py reads to time the webcam recording. The game still runs on its own.
 """
 
+import argparse
 import csv
 import json
 import math
@@ -71,19 +75,17 @@ METER_CAPACITY = N_TRIALS
 # ---------------------------------------------------------------------------
 # Data logging
 # ---------------------------------------------------------------------------
-DATA_DIR = "data"
-DATA_FILE = "space_shooter_data.csv"
-CSV_COLUMNS = [
-    "trial",
-    "choice",
-    "active_ufo",
-    "outcome",
-    "switch_occurred",
-    "rt_ms",              # ms since the previous shot (task start for trial 1)
-    "timestamp",
-    "time_on_choice_ms",  # ms since the ship arrived at its current position (or task start)
-    "session_id",         # distinguishes runs appended to the same file
-]
+TASK_NAME = "space_shooter"
+DATA_DIR = "data"                     # standalone runs: data/space_shooter_YYYYMMDD_HHMMSS/
+DATA_FILE = "task_events.csv"
+# One row per event. frame_idx is left empty here; the recorder fills it in after
+# the session (nearest video frame). Events:
+#   trial        a trial happens at `side` (the player shoots)
+#   reward/fail  that trial's outcome (same timestamp as the trial)
+#   switch       the participant leaves the current site; side = the site they go to
+#                (the ship starts moving off its position)
+#   system_flip  hidden: the active site flips; side = the newly active site
+CSV_COLUMNS = ["timestamp", "frame_idx", "event", "side"]
 
 INSTRUCTIONS = [
     "Defend your planet from alien invaders!",
@@ -228,7 +230,7 @@ def make_sounds():
 # Game
 # ---------------------------------------------------------------------------
 class Game:
-    def __init__(self):
+    def __init__(self, out_dir=None):
         pygame.mixer.pre_init(44100, -16, 1, 512)
         pygame.init()
         pygame.display.set_caption("Space Shooter")
@@ -248,12 +250,14 @@ class Game:
             big = star_rng.random() < 0.08
             self.stars.append((x, y, color, big))
 
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), DATA_DIR)
-        os.makedirs(data_dir, exist_ok=True)
-        self.data_path = os.path.join(data_dir, DATA_FILE)
-        self.need_header = (not os.path.exists(self.data_path)
-                            or os.path.getsize(self.data_path) == 0)
         self.session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if out_dir is None:
+            out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), DATA_DIR,
+                                   "{}_{}".format(TASK_NAME, self.session_id))
+        os.makedirs(out_dir, exist_ok=True)
+        self.data_path = os.path.join(out_dir, DATA_FILE)
+        with open(self.data_path, "w", newline="") as f:
+            csv.writer(f).writerow(CSV_COLUMNS)
 
         self.state = "start"
         self.aim = self.rng.choice(["left", "right"])   # None while between positions
@@ -292,12 +296,13 @@ class Game:
         self.moving = self.ship_pos != old
         if self.moving:
             if self.aim is not None:
-                emit("depart", side=self.aim, trial=self.trial)
+                # Leaving a position is the switch decision; the ship can only head
+                # to the other position (reversing mid-way returns to the same one).
+                self.log_event("switch", "right" if direction > 0 else "left", datetime.now())
             self.aim = None
             if self.ship_pos in (0.0, 1.0):
                 self.aim = "left" if self.ship_pos == 0.0 else "right"
                 self.aim_since_ms = now
-                emit("arrive", side=self.aim, trial=self.trial)
 
     def fire(self, now):
         self.trial += 1
@@ -308,24 +313,16 @@ class Game:
         # becomes active on its own, so the player must go to the other UFO.
         switched = choice == active and self.rng.random() < P_SWITCH
 
-        self.log_trial({
-            "trial": self.trial,
-            "choice": choice,
-            "active_ufo": active,
-            "outcome": "reward" if success else "failure",
-            "switch_occurred": switched,
-            "rt_ms": now - self.last_fire_ms,
-            "timestamp": datetime.now().isoformat(timespec="milliseconds"),
-            "time_on_choice_ms": now - self.aim_since_ms,
-            "session_id": self.session_id,
-        })
+        t = datetime.now()
+        self.log_event("trial", choice, t)
+        self.log_event("reward" if success else "fail", choice, t)
+        if switched:
+            self.log_event("system_flip", other(active), t)
 
         if switched:
             self.active = other(active)
         if success:
             self.kills += 1
-        emit("shot", trial=self.trial, choice=choice, outcome="reward" if success else "failure",
-             kills=self.kills)
         self.flash_side = choice
         self.flash_kind = "success" if success else "failure"
         self.flash_start_ms = now
@@ -335,13 +332,12 @@ class Game:
         if sound is not None:
             sound.play()
 
-    def log_trial(self, row):
+    def log_event(self, event, side, t):
+        """Append one event row (saved immediately) and tell the recorder on stdout."""
+        stamp = t.isoformat(timespec="microseconds")
         with open(self.data_path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
-            if self.need_header:
-                writer.writeheader()
-                self.need_header = False
-            writer.writerow(row)
+            csv.writer(f).writerow([stamp, "", event, side])
+        emit(event, side=side, t=stamp)
 
     # ----- main loop -------------------------------------------------------
     def run(self):
@@ -366,14 +362,14 @@ class Game:
                 self.update_travel(dt_ms, now)
                 if self.kills >= N_TRIALS and now - self.last_fire_ms >= END_DELAY_MS:
                     self.state = "end"
-                    emit("task_end", trials=self.trial, kills=self.kills)
+                    emit("task_end", trials=self.trial, kills=self.kills, n_rewards=self.kills)
 
             remaining = N_TRIALS - self.kills
             self.shown_remaining += (remaining - self.shown_remaining) * min(1.0, dt * 8)
             self.draw(now)
 
     def quit(self):
-        emit("quit", state=self.state, trials=self.trial, kills=self.kills)
+        emit("quit", state=self.state, trials=self.trial, kills=self.kills, n_rewards=self.kills)
         pygame.quit()
         sys.exit()
 
@@ -534,4 +530,7 @@ class Game:
 
 
 if __name__ == "__main__":
-    Game().run()
+    parser = argparse.ArgumentParser(description="Space Shooter task")
+    parser.add_argument("--out-dir", default=None,
+                        help="folder for task_events.csv (default: a new folder in task/data/)")
+    Game(parser.parse_args().out_dir).run()

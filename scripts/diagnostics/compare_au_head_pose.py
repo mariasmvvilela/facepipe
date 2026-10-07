@@ -39,7 +39,7 @@ Writes to openface_output/<session>/au_vs_head_pose/:
 
 Usage (inside the facepipe env, from the project folder, after st3b):
     python scripts\\diagnostics\\compare_au_head_pose.py
-    python scripts\\diagnostics\\compare_au_head_pose.py --session session_YYYYMMDD_HHMMSS
+    python scripts\\diagnostics\\compare_au_head_pose.py --session session_YYYYMMDD_HHMMSS_<task>
 """
 import argparse
 import json
@@ -52,7 +52,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 POSE_NAMES = ["yaw", "pitch", "roll"]
 MIN_ACTIVE_FRAC = 0.01   # leave out AUs with intensity > 0 on fewer than 1% of frames
 N_BINS = 10              # pose deciles for the tuning curves

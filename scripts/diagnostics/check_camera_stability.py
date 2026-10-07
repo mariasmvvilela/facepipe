@@ -20,7 +20,7 @@ Writes to mediapipe_output/<session>/:
     camera_stability.json   metrics
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\diagnostics\\check_camera_stability.py --session raw_video\\session_YYYYMMDD_HHMMSS
+    python scripts\\diagnostics\\check_camera_stability.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
 """
 import argparse
 import json
@@ -65,7 +65,7 @@ def stats(x):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--session", type=Path, required=True, help="session folder in raw_video/")
+    parser.add_argument("--session", type=Path, required=True, help="session folder in raw_data/")
     args = parser.parse_args()
 
     session_dir = args.session if args.session.is_absolute() else PROJECT_DIR / args.session

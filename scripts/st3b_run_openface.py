@@ -29,7 +29,7 @@ Notes on OpenFace 2.2.0:
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st3b_run_openface.py
-    python scripts\\st3b_run_openface.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st3b_run_openface.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
     python scripts\\st3b_run_openface.py --rerun      (run OpenFace again even if its CSV exists)
 """
 import argparse
@@ -45,7 +45,7 @@ import numpy as np
 import pandas as pd
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = PROJECT_DIR / "raw_video" / "session_20260928_161612"
+DEFAULT_SESSION = PROJECT_DIR / "raw_data" / "session_20260928_161612_alien_energy_forager"
 OUTPUT_ROOT = PROJECT_DIR / "openface_output"
 # OpenFace lives outside the repo; set OPENFACE_DIR to override.
 OPENFACE_DIR = Path(os.environ.get("OPENFACE_DIR", r"C:\Users\Maria\tools\OpenFace_2.2.0_win_x64"))
@@ -79,7 +79,7 @@ def run_openface(video_path, raw_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", type=Path, default=DEFAULT_SESSION,
-                        help="session folder in raw_video/")
+                        help="session folder in raw_data/")
     parser.add_argument("--rerun", action="store_true",
                         help="run OpenFace again even if its CSV already exists")
     args = parser.parse_args()

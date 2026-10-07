@@ -30,7 +30,7 @@ Writes to openface_output/<session>/compare_facemap/:
 
 Usage (inside the facepipe env, from the project folder, after st3a and st3b):
     python scripts\\diagnostics\\compare_facemap_openface.py
-    python scripts\\diagnostics\\compare_facemap_openface.py --session session_YYYYMMDD_HHMMSS
+    python scripts\\diagnostics\\compare_facemap_openface.py --session session_YYYYMMDD_HHMMSS_<task>
 """
 import argparse
 import json
@@ -43,7 +43,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 ROIS = ["eyes_brows", "lower_face"]
 N_PCS = 10            # same number stage 4 uses
 POSE_NAMES = ["yaw", "pitch", "roll"]

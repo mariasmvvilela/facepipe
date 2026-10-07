@@ -58,7 +58,7 @@ def save_with_retry(fig, out, attempts=5):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", default=DEFAULT_SESSION,
-                        help="session folder name (or path) in raw_video/")
+                        help="session folder name (or path) in raw_data/")
     parser.add_argument("--full-frame", action="store_true",
                         help="plot the st3a --full-frame output (facemap_output/<session>/full_face/)")
     parser.add_argument("--n-show", type=int, default=6, help="number of PCs to plot (5 per row)")

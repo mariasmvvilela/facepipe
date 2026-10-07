@@ -2,8 +2,8 @@
 feature matrix for leave-decision classification.
 
 Inputs (per session):
-    raw_video/<session>/task_events.csv          trial log from task/alien_energy_forager.py
-    raw_video/<session>/recording_*.avi          video; its filename gives the start time
+    raw_data/<session>/task_events.csv          trial log written by the task (task/<task>.py)
+    raw_data/<session>/recording_*.avi          video; its filename gives the start time
     facemap_output/<session>/{eyes_brows,lower_face}_PCs.npy
     mediapipe_output/<session>/head_pose.npy, summary.json (fps)
 
@@ -16,10 +16,10 @@ Outputs in trial_data/<session>/:
 
 Definitions (from the task code, not the column names):
   * leave: the participant's choice on the next trial differs from this trial's.
-    `switch_occurred` is the task's hidden, random crystal depletion, which the
-    participant never sees; it's kept in the metadata but is NOT the label.
+    `switch_occurred` is the task's hidden, random switch of the active site, which
+    the participant never sees; it's kept in the metadata but is NOT the label.
   * site visit: a run of consecutive trials with the same `choice` (where the
-    participant is foraging), not a run of the hidden `active_crystal`.
+    participant is foraging), not a run of the hidden `active_site`.
   * The last trial has no next choice, so it has no label and is dropped.
 
 Usage (inside the facepipe env, from the project folder):
@@ -37,7 +37,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 
 N_PCS = 10
 HALF_WINDOW_S = 0.25   # window = trial timestamp +/- 250 ms, cut at the next aim change
@@ -56,7 +56,7 @@ def video_start_time(session_dir):
 
 
 def load_frame_times(session_dir, video_name):
-    """Per-frame wall-clock times from record_session.py's sidecar, or None."""
+    """Per-frame wall-clock times from the recorder's sidecar, or None."""
     path = session_dir / (Path(video_name).stem + "_frametimes.csv")
     if not path.is_file():
         return None
@@ -70,9 +70,9 @@ def window_mean(values, start, end):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", default=DEFAULT_SESSION,
-                        help="session folder name (or path) in raw_video/")
+                        help="session folder name (or path) in raw_data/")
     SESSION = Path(parser.parse_args().session).name
-    SESSION_DIR = PROJECT_DIR / "raw_video" / SESSION
+    SESSION_DIR = PROJECT_DIR / "raw_data" / SESSION
     TASK_CSV = SESSION_DIR / "task_events.csv"
     EYES_PCS = PROJECT_DIR / "facemap_output" / SESSION / "eyes_brows_PCs.npy"
     LOWER_PCS = PROJECT_DIR / "facemap_output" / SESSION / "lower_face_PCs.npy"
@@ -87,8 +87,9 @@ def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     df_all = pd.read_csv(TASK_CSV)
-    # task/space_shooter.py calls the hidden active site active_ufo
-    df_all = df_all.rename(columns={"active_ufo": "active_crystal"})
+    # Sessions recorded before the schema was standardised use the old column names
+    df_all = df_all.rename(columns={"trial": "trial_number", "active_ufo": "active_site",
+                                    "active_crystal": "active_site"})
     df_all["timestamp"] = pd.to_datetime(df_all["timestamp"])
     eyes_pcs = np.load(EYES_PCS)[:, :N_PCS]
     lower_pcs = np.load(LOWER_PCS)[:, :N_PCS]
@@ -244,7 +245,7 @@ def main():
     y = df["leave"].values.astype(int)
     X = accum_df.values.astype(np.float32)
     feature_names = list(accum_df.columns)
-    meta = df[["trial", "choice", "active_crystal", "outcome", "switch_occurred", "leave",
+    meta = df[["trial_number", "choice", "active_site", "outcome", "switch_occurred", "leave",
                "timestamp", "site_visit", "frame_idx"]].copy()
     meta["trial_in_visit"] = accum_df["trial_in_visit"]
 

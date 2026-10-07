@@ -20,7 +20,7 @@ Notes on the FaceMap 1.0.8 API (differs from older docs / the GUI):
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st3a_run_facemap.py
-    python scripts\\st3a_run_facemap.py --session session_YYYYMMDD_HHMMSS [--full-frame]
+    python scripts\\st3a_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> [--full-frame]
 """
 import argparse
 import json
@@ -32,7 +32,7 @@ import numpy as np
 from facemap import process
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 
 # Pixel coordinates in the 256x256 stabilised crop. The split at y=130 sits
 # below the lower eyelids (eyes at y=90) and above the nose tip (y=145).
@@ -81,7 +81,7 @@ def roi_motion_sum_of_squares(video_path, rois, avgmotion):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", default=DEFAULT_SESSION,
-                        help="session folder name (or path) in raw_video/")
+                        help="session folder name (or path) in raw_data/")
     parser.add_argument("--full-frame", action="store_true",
                         help="one SVD over the whole stabilised frame instead of ROIS; "
                              "saves to facemap_output/<session>/full_face/")
