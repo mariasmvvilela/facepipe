@@ -26,7 +26,7 @@ Definitions (from the task code, not the column names):
   * The last trial has no next choice, so it has no label and is dropped.
 
 Features, for trial i (1-indexed) of a site visit, using trials 1..i of that visit:
-  * task: trial_in_visit (= i), consecutive_failures (failure run ending at i, reset by
+  * task: consecutive_failures (failure run ending at i, reset by
     any reward), reward_rate (rewards / i).
   * face, per ROI and per PC k = 1..N_PCS, from each trial's window-mean PC value:
     <roi>_PC<k>_mean (mean over 1..i), _last3 (mean over the last min(3, i) trials),
@@ -67,7 +67,7 @@ DEFAULT_SESSION = "session_20260930_165233"   # same as st2
 ROIS = ["whole_face", "upper_face", "lower_face", "upper_face_no_eyes"]
 N_PCS = 6
 FACE_STATS = ["mean", "last3", "slope"]
-TASK_FEATURES = ["trial_in_visit", "consecutive_failures", "reward_rate"]
+TASK_FEATURES = ["consecutive_failures", "reward_rate"]
 HALF_WINDOW_S = 0.25   # feature window = trial timestamp +/- 250 ms, cut at the next aim change
 
 L1_RATIO = 0.5
@@ -120,7 +120,7 @@ def accumulated_features(df, trial_pcs):
         for t in range(len(idx)):
             i = t + 1                       # position in the visit, 1-indexed
             consec_failures = consec_failures + 1 if outcomes[t] == "failure" else 0
-            row = [i, consec_failures, (outcomes[:i] == "reward").sum() / i]
+            row = [consec_failures, (outcomes[:i] == "reward").sum() / i]
             for pcs in trial_pcs.values():
                 vals = pcs[idx[:i]]         # (i, N_PCS)
                 mean = vals.mean(axis=0)
