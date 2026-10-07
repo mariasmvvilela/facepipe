@@ -28,9 +28,9 @@ Notes on OpenFace 2.2.0:
   * OpenFace frames are 1-based; they are re-indexed to match the video's frame 0.
 
 Usage (inside the facepipe env, from the project folder):
-    python scripts\\st3b_run_openface.py
-    python scripts\\st3b_run_openface.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
-    python scripts\\st3b_run_openface.py --rerun      (run OpenFace again even if its CSV exists)
+    python scripts\\st2b_run_openface.py
+    python scripts\\st2b_run_openface.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
+    python scripts\\st2b_run_openface.py --rerun      (run OpenFace again even if its CSV exists)
 """
 import argparse
 import json
@@ -118,7 +118,7 @@ def main():
         print("WARNING: OpenFace reported {} face ids; keeping face 0".format(df["face_id"].nunique()))
         df = df[df["face_id"] == 0]
     n_frames = n_video
-    landmarks_path = PROJECT_DIR / "mediapipe_output" / session_dir.name / "landmarks.npy"
+    landmarks_path = PROJECT_DIR / "preprocessed" / session_dir.name / "landmarks.npy"
     if landmarks_path.is_file():
         n_mp = len(np.load(landmarks_path, mmap_mode="r"))
         if n_mp != n_video:

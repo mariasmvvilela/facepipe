@@ -30,19 +30,30 @@ Parse folder names with `name.split("_", 3)` → `["session", date, time, task]`
 Two branches turn the raw video into per-frame face features; both feed stage 4.
 
 ```
-raw video ─┬─ st1 MediaPipe ─ st2 stabilise ─ st3a FaceMap ──┬─ st4 trial features ─ st5 classify
-           └─ st3b OpenFace (own 3D alignment) ──────────────┘
+raw video ─┬─ st1 preprocess face ─ st2 FaceMap ──┬─ st4 trial features ─ st5 classify
+           └─ st2b OpenFace (own 3D alignment) ───┘
 ```
 
-1. `st1_mediapipe_landmarks.py` — detect 478 face landmarks + head pose per frame
-2. `st2_stabilise_video.py` — similarity-warp each frame to a canonical face template, mask the face oval
-3. a. `st3a_run_facemap.py` — SVD on motion energy, extract movement PCs
-   b. `st3b_run_openface.py` — OpenFace 2.2 action units, head pose and gaze from the raw video *(planned)*
+1. `st1_preprocess_face.py` — head-mounted camera sessions. MediaPipe landmarks on every frame;
+   stability check (stops if the face moved in the frame); one fixed crop to a 256×256
+   grayscale face video with the background greyed (`preprocessed/<session>/face.avi`); anatomical
+   ROI masks from the landmarks (`rois.npz`, preview in `roi_preview.png`). ROIs are defined in
+   `REGIONS` / `ROIS` at the top of the script: `whole_face`, `face_no_eyes` (visible eye only
+   removed), `face_no_eyes_or_lids`, `eyes`, `brows`,
+   `nose`, `mouth`.
+2. `st2_run_facemap.py` — FaceMap motion SVD, one run per ROI (`--rois`, default `whole_face
+   face_no_eyes`, or `all`); pixels outside each ROI are greyed so they contribute no motion
+2b. `st2b_run_openface.py` — OpenFace 2.2 action units, head pose and gaze from the raw video
+   *(optional; kept in case it is useful)*
 4. `st4_extract_trial_features.py` — align to task events, build accumulated feature matrix
+   *(not yet updated for the new st1/st2 outputs or the event-based task_events.csv)*
 5. `st5_classify_leave.py` — predict leave decision from face + eye features *(planned)*
 
-Diagnostics (not part of the pipeline) live in `scripts/diagnostics/`:
-`check_pc_head_motion.py` (FaceMap PCs vs head pose), `plot_facemap_masks.py`, `draw_roi.py`.
+Diagnostics (not part of the pipeline) live in `scripts/diagnostics/`: `plot_facemap_masks.py`
+(FaceMap spatial masks per ROI), `compare_au_head_pose.py`, `compare_facemap_openface.py`
+*(still expects the old st1/st3a outputs)*. Replaced scripts (old MediaPipe st1, stabilisation
+st2, rectangle-ROI st3a, camera-stability and head-pose diagnostics) are in `scripts/legacy/`
+for reference; they are not maintained and may need path fixes to run.
 
 ## Environment setup
 Requires conda and an NVIDIA GPU driver supporting CUDA 12.8+. To recreate the exact environment

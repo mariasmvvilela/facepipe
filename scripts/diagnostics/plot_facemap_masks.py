@@ -1,12 +1,17 @@
-"""Plot FaceMap spatial masks (PC1-6, or --n-show) for each ROI over the mean stabilised face.
+"""Plot FaceMap spatial masks (PC1-6, or --n-show) for each ROI over the mean face.
 
-Saves facemap_output/<session>/spatial_masks_<suffix>.png, one 2x3 grid per ROI
-(red = positive, blue = negative; the sign of an SVD component is arbitrary).
+Reads stage 2's <roi>_masks.npy / <roi>_varexp.npy and the ROI's bounding box from
+facemap_output/<session>/summary.json, and the mean face from stage 1's face.avi.
+Saves facemap_output/<session>/spatial_masks_<roi>.png, one grid per ROI
+(red = positive, blue = negative; the sign of an SVD component is arbitrary;
+the ROI outline is drawn in yellow).
 
-Usage (inside the facepipe env, from the project folder, after st3a_run_facemap.py):
-    python scripts\\diagnostics\\plot_facemap_masks.py
+Usage (inside the facepipe env, from the project folder, after st2_run_facemap.py):
+    python scripts\\diagnostics\\plot_facemap_masks.py --session session_YYYYMMDD_HHMMSS_<task>
+    python scripts\\diagnostics\\plot_facemap_masks.py --session session_YYYYMMDD_HHMMSS_<task> --rois mouth
 """
 import argparse
+import json
 import os
 import sys
 import time
@@ -20,14 +25,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))   # scripts/, for the stage modules
-from st3a_run_facemap import DEFAULT_SESSION, FULL_FRAME_ROI, PROJECT_DIR, ROIS, SBIN  # noqa: E402
+from st2_run_facemap import DEFAULT_SESSION, PROJECT_DIR, SBIN  # noqa: E402
 
-FILE_SUFFIX = {"eyes_brows": "eyes", "lower_face": "lower"}
 N_MEAN_FRAMES = 300
 
 
 def mean_face(video_path):
-    """Mean full-resolution grayscale frame from evenly spaced frames."""
+    """Mean grayscale frame from evenly spaced frames."""
     cap = cv2.VideoCapture(str(video_path))
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     acc = None
@@ -59,30 +63,31 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", default=DEFAULT_SESSION,
                         help="session folder name (or path) in raw_data/")
-    parser.add_argument("--full-frame", action="store_true",
-                        help="plot the st3a --full-frame output (facemap_output/<session>/full_face/)")
+    parser.add_argument("--rois", nargs="+", default=None,
+                        help="ROIs to plot (default: every ROI in stage 2's summary.json)")
     parser.add_argument("--n-show", type=int, default=6, help="number of PCs to plot (5 per row)")
     args = parser.parse_args()
-    SESSION = Path(args.session).name
-    STABILISED_VIDEO = PROJECT_DIR / "stabilised_video" / SESSION / "stabilised.avi"
-    OUTPUT_DIR = PROJECT_DIR / "facemap_output" / SESSION
-    rois = ROIS
-    if args.full_frame:
-        OUTPUT_DIR = OUTPUT_DIR / FULL_FRAME_ROI["label"]
-        rois = [FULL_FRAME_ROI]
+    session = Path(args.session).name
+    face_video = PROJECT_DIR / "preprocessed" / session / "face.avi"
+    roi_masks = dict(np.load(PROJECT_DIR / "preprocessed" / session / "rois.npz"))
+    out_dir = PROJECT_DIR / "facemap_output" / session
+    with open(out_dir / "summary.json") as f:
+        fm_rois = json.load(f)["rois"]
+    names = args.rois or list(fm_rois)
     n_cols = 3 if args.n_show <= 6 else 5
     n_rows = -(-args.n_show // n_cols)
 
-    face = mean_face(STABILISED_VIDEO)
-    for r in rois:
-        label = r["label"]
-        masks = np.load(OUTPUT_DIR / "{}_masks.npy".format(label))
-        varexp = np.load(OUTPUT_DIR / "{}_varexp.npy".format(label))
-        # Pixels FaceMap actually used: whole sbin blocks from the start of the ROI.
+    face = mean_face(face_video)
+    for label in names:
+        masks = np.load(out_dir / "{}_masks.npy".format(label))
+        varexp = np.load(out_dir / "{}_varexp.npy".format(label))
+        box = fm_rois[label]["box_in_face_video"]
+        # Pixels FaceMap actually used: whole sbin blocks from the box origin.
         hb, wb = masks.shape[:2]
-        y0, x0 = (r["y"] // SBIN) * SBIN, (r["x"] // SBIN) * SBIN
+        y0, x0 = box["y"], box["x"]
         y1, x1 = y0 + hb * SBIN, x0 + wb * SBIN
         crop = face[y0:y1, x0:x1]
+        outline = roi_masks[label][y0:y1, x0:x1]
 
         width = 11 if n_cols == 3 else 16
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(
@@ -90,18 +95,18 @@ def main():
         for ax in axes.flat[args.n_show:]:
             ax.axis("off")
         for k, ax in enumerate(axes.flat[:args.n_show]):
-            m = masks[:, :, k]
-            m_up = cv2.resize(m, (x1 - x0, y1 - y0), interpolation=cv2.INTER_CUBIC)
-            lim = np.abs(m).max()
+            m_up = cv2.resize(masks[:, :, k], (x1 - x0, y1 - y0), interpolation=cv2.INTER_CUBIC)
+            lim = np.abs(m_up).max()
             ax.imshow(crop, cmap="gray")
             ax.imshow(m_up, cmap="RdBu_r", vmin=-lim, vmax=lim, alpha=0.55)
+            ax.contour(outline, levels=[0.5], colors="yellow", linewidths=0.6)
             ax.set_title("PC{}  ({:.1f}% var)".format(k + 1, varexp[k] * 100))
             ax.axis("off")
-        fig.suptitle("FaceMap motion SVD masks: {} (x={}-{}, y={}-{}), {}\n"
+        fig.suptitle("FaceMap motion SVD masks: {}, {}\n"
                      "red = positive, blue = negative weight (sign of each PC is arbitrary)".format(
-                         label, x0, x1, y0, y1, SESSION), fontsize=11)
+                         label, session), fontsize=11)
         fig.tight_layout()
-        out = OUTPUT_DIR / "spatial_masks_{}.png".format(FILE_SUFFIX.get(label, label))
+        out = out_dir / "spatial_masks_{}.png".format(label)
         save_with_retry(fig, out)
         plt.close(fig)
         print("saved {}".format(out))
