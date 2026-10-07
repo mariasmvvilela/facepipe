@@ -37,9 +37,9 @@ Writes to openface_output/<session>/au_vs_head_pose/:
     au_head_timeseries.png   pose, head speed and the most head-related AUs over time
     au_head_pose.json        all numbers
 
-Usage (inside the facepipe env, from the project folder, after st3b):
+Usage (inside the facepipe env, from the project folder, after st2b):
     python scripts\\diagnostics\\compare_au_head_pose.py
-    python scripts\\diagnostics\\compare_au_head_pose.py --session session_YYYYMMDD_HHMMSS
+    python scripts\\diagnostics\\compare_au_head_pose.py --session session_YYYYMMDD_HHMMSS_<task>
 """
 import argparse
 import json
@@ -52,7 +52,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 POSE_NAMES = ["yaw", "pitch", "roll"]
 MIN_ACTIVE_FRAC = 0.01   # leave out AUs with intensity > 0 on fewer than 1% of frames
 N_BINS = 10              # pose deciles for the tuning curves
@@ -113,7 +113,7 @@ def main():
              "pose": of_dir / "head_pose.npy", "summary": of_dir / "summary.json"}
     for p in paths.values():
         if not p.is_file():
-            sys.exit("ERROR: not found: {} (run st3b first)".format(p))
+            sys.exit("ERROR: not found: {} (run st2b first)".format(p))
     out_dir.mkdir(exist_ok=True)
 
     au = np.load(paths["au"]).astype(np.float64)

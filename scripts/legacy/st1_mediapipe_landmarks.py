@@ -10,7 +10,7 @@ and saves to mediapipe_output/<session folder name>/:
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st1_mediapipe_landmarks.py
-    python scripts\\st1_mediapipe_landmarks.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
+    python scripts\\st1_mediapipe_landmarks.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
 """
 import argparse
 import json
@@ -25,7 +25,7 @@ from mediapipe.tasks.python.core.base_options import BaseOptions
 from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = PROJECT_DIR / "raw_video" / "session_20260928_161612"
+DEFAULT_SESSION = PROJECT_DIR / "raw_data" / "session_20260928_161612_alien_energy_forager"
 MODEL_PATH = PROJECT_DIR / "scripts" / "face_landmarker.task"
 OUTPUT_ROOT = PROJECT_DIR / "mediapipe_output"
 
@@ -84,7 +84,7 @@ def find_video(session_dir):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", type=Path, default=DEFAULT_SESSION,
-                        help="session folder in raw_video/")
+                        help="session folder in raw_data/")
     parser.add_argument("--video", type=Path, default=None,
                         help="video file (default: the single .avi in the session folder)")
     args = parser.parse_args()

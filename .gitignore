@@ -1,8 +1,10 @@
 # Data folders — never commit their contents
 # (folder/* + !folder/.gitkeep keeps the empty folder in the repo;
 #  ignoring "folder/" outright would also hide the .gitkeep)
-raw_video/*
-!raw_video/.gitkeep
+raw_data/*
+!raw_data/.gitkeep
+preprocessed/*
+!preprocessed/.gitkeep
 stabilised_video/*
 !stabilised_video/.gitkeep
 facemap_output/*

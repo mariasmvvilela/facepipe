@@ -20,7 +20,7 @@ Writes to facemap_output/<session>/ (<roi> = the --roi label):
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\diagnostics\\check_pc_head_motion.py
-    python scripts\\diagnostics\\check_pc_head_motion.py --session session_YYYYMMDD_HHMMSS --roi eyes_brows
+    python scripts\\diagnostics\\check_pc_head_motion.py --session session_YYYYMMDD_HHMMSS_<task> --roi eyes_brows
 """
 import argparse
 import json
@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_SESSION = "session_20260928_161612"
+DEFAULT_SESSION = "session_20260928_161612_alien_energy_forager"
 N_PCS = 6
 POSE_NAMES = ["yaw", "pitch", "roll"]
 

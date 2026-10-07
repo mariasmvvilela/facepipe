@@ -19,8 +19,8 @@ diagnostics/check_camera_stability.py.
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st2_stabilise_video.py
-    python scripts\\st2_stabilise_video.py --session raw_video\\session_YYYY-MM-DD_HH-MM-SS
-    python scripts\\st2_stabilise_video.py --session raw_video\\session_YYYYMMDD_HHMMSS --fixed
+    python scripts\\st2_stabilise_video.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task>
+    python scripts\\st2_stabilise_video.py --session raw_data\\session_YYYYMMDD_HHMMSS_<task> --fixed
 """
 import argparse
 import json
@@ -31,7 +31,7 @@ import cv2
 import numpy as np
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = PROJECT_DIR / "raw_video" / "session_20260928_161612"
+DEFAULT_SESSION = PROJECT_DIR / "raw_data" / "session_20260928_161612_alien_energy_forager"
 LANDMARK_ROOT = PROJECT_DIR / "mediapipe_output"
 OUTPUT_ROOT = PROJECT_DIR / "stabilised_video"
 
@@ -119,7 +119,7 @@ def to_gray_bgr(img):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", type=Path, default=DEFAULT_SESSION,
-                        help="session folder in raw_video/")
+                        help="session folder in raw_data/")
     parser.add_argument("--fixed", action="store_true",
                         help="head-mounted camera: one median transform + mask for all frames")
     args = parser.parse_args()
