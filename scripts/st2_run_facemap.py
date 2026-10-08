@@ -36,14 +36,10 @@ Usage (inside the facepipe env, from the project folder):
     python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task>
     python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --rois upper_face upper_face_no_eyes
     python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --rois all
-    python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --subfolder rectangular_rois
 """
 import argparse
 import json
-import os
 import sys
-import time
-from pathlib import Path
 
 import cv2
 import matplotlib
@@ -54,9 +50,9 @@ from sklearn.utils.extmath import randomized_svd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = "session_20260930_165233"
-DEFAULT_ROIS = ["whole_face", "upper_face", "lower_face", "upper_face_no_eyes"]
+from common import FACEMAP_DIR, PREPROCESSED_DIR, PROJECT_DIR, save_figure, session_name  # noqa: E402
+from roi_definitions import DEFAULT_ROIS  # noqa: E402
+
 SBIN = 4
 N_COMPONENTS = 100
 MASK_GREY = 128          # same as stage 1
@@ -102,22 +98,6 @@ def roi_motion_sum_of_squares(video_path, rois, avgmotion):
         prev = binned
     cap.release()
     return totals
-
-
-def save_figure(fig, path, attempts=5):
-    """Save via a temp file + rename. On Windows an open image preview can briefly
-    hold the target, which makes a direct save fail (Errno 22)."""
-    tmp = path.with_name(path.stem + ".tmp.png")
-    fig.savefig(tmp, dpi=110)
-    plt.close(fig)
-    for i in range(attempts):
-        try:
-            os.replace(tmp, path)
-            return
-        except OSError:
-            if i == attempts - 1:
-                raise
-            time.sleep(0.5)
 
 
 def mean_face(video_path):
@@ -212,22 +192,16 @@ def write_roi_video(face_video, mask, out_path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--session", default=DEFAULT_SESSION,
-                        help="session folder name (or path) in raw_data/")
+    parser.add_argument("--session", required=True, help="session folder name (or path) in raw_data/")
     parser.add_argument("--rois", nargs="+", default=DEFAULT_ROIS,
                         help="ROI names from stage 1's rois.npz, or 'all' (default: {})".format(
                             " ".join(DEFAULT_ROIS)))
-    parser.add_argument("--subfolder", default=None,
-                        help="save into facemap_output/<session>/<subfolder>/ (e.g. to keep runs with "
-                             "different ROI definitions apart)")
     args = parser.parse_args()
-    session = Path(args.session).name
-    pre_dir = PROJECT_DIR / "preprocessed" / session
+    session = session_name(args.session)
+    pre_dir = PREPROCESSED_DIR / session
     face_video = pre_dir / "face.avi"
     rois_path = pre_dir / "rois.npz"
-    out_dir = PROJECT_DIR / "facemap_output" / session
-    if args.subfolder:
-        out_dir = out_dir / args.subfolder
+    out_dir = FACEMAP_DIR / session
     for p in (face_video, rois_path):
         if not p.is_file():
             sys.exit("ERROR: not found (run st1_preprocess_face.py first): {}".format(p))

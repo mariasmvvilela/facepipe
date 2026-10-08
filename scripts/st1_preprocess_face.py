@@ -17,7 +17,7 @@ Steps:
   3. Clean video: one similarity transform from the median anchors onto a 256x256
      template, grayscale, everything outside the face oval set to grey.
   4. ROIs (as in Cazettes et al. 2025): horizontal bands of the face oval, bounded by
-     landmarks of the median face (see ROIS): whole_face, upper_face (forehead top to
+     landmarks of the median face (see ROIS in roi_definitions.py): whole_face, upper_face (forehead top to
      mid-nose, eyes included), lower_face (mid-nose to chin), and upper_face_no_eyes (upper_face
      with the visible eyes greyed, to separate brow / periorbital skin from blinks and gaze).
 
@@ -31,7 +31,7 @@ Writes to preprocessed/<session>/:
     roi_preview.png      every ROI outlined on the mean clean face
     summary.json         session metadata
 
-After editing ROIS / EYE_MARGIN, --rois-only rebuilds just the ROIs (and their preview)
+After editing ROIS (roi_definitions.py) / EYE_MARGIN, --rois-only rebuilds just the ROIs (and their preview)
 from the saved landmarks in a few seconds, without redoing MediaPipe or the video.
 
 Usage (inside the facepipe env, from the project folder):
@@ -40,10 +40,7 @@ Usage (inside the facepipe env, from the project folder):
 """
 import argparse
 import json
-import os
 import sys
-import time
-from pathlib import Path
 
 import cv2
 import matplotlib
@@ -56,10 +53,10 @@ from mediapipe.tasks.python.vision import FaceLandmarker, FaceLandmarkerOptions
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = PROJECT_DIR / "raw_data" / "session_20260930_165233"
+from common import PREPROCESSED_DIR, PROJECT_DIR, RAW_DIR, save_figure, session_name  # noqa: E402
+from roi_definitions import ROIS  # noqa: E402
+
 MODEL_PATH = PROJECT_DIR / "scripts" / "face_landmarker.task"
-OUTPUT_ROOT = PROJECT_DIR / "preprocessed"
 
 N_LANDMARKS = 478
 PROGRESS_EVERY = 500
@@ -87,33 +84,10 @@ FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365
              54, 103, 67, 109]
 RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
 LEFT_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]
-# Upper/lower split at mid-nose (195), below the eyes and their margin, so the eyes are in
-# upper_face as in Cazettes et al. (the nose bridge, 168, cuts through the top of the eyes).
-FOREHEAD_TOP, MID_NOSE, CHIN = 10, 195, 152
-BROWS_MID, NOSE_BRIDGE = 8, 197   # 8: between the brows; 197: nose bridge just below the eyes
-ABOVE_BROWS = 9                   # forehead, just above the brows
-MID_FOREHEAD = 151
-
 # Eye cut-out: the eye outline is the lid margin (median, i.e. open, eye), so this is the
 # visible eye only, plus a small margin for the lashes (fraction of the distance between
 # the eye centres). The skin around the eyes stays in.
 EYE_MARGIN = 0.1
-
-# ROIs (as in Cazettes et al. 2025): horizontal bands of the face, full face width.
-# name -> (top landmark, bottom landmark, cut out the eyes). Each band runs from the top
-# landmark's row down to (not including) the bottom landmark's row, in the median face;
-# None = no limit on that side. Every ROI is limited to the face oval, so the band's
-# width is the face's width at each row. st2 picks ROIs by name.
-ROIS = {
-    "whole_face":         (None, None, False),
-    "upper_face":         (FOREHEAD_TOP, MID_NOSE, False),
-    "lower_face":         (MID_NOSE, CHIN, False),
-    "upper_face_no_eyes": (FOREHEAD_TOP, MID_NOSE, True),
-    "eye_band":           (BROWS_MID, NOSE_BRIDGE, False),
-    "brows_to_mid_nose":  (ABOVE_BROWS, MID_NOSE, False),
-    "mid_forehead_to_mid_nose": (MID_FOREHEAD, MID_NOSE, False),
-}
-
 
 def find_video(session_dir):
     videos = sorted(session_dir.glob("*.avi"))
@@ -379,21 +353,6 @@ def save_roi_preview(mean_face, rois, path, title):
     plt.close(fig)
 
 
-def save_figure(fig, path, attempts=5):
-    """Save via a temp file + rename. On Windows an open image preview can briefly
-    hold the target, which makes a direct save fail (Errno 22)."""
-    tmp = path.with_name(path.stem + ".tmp.png")
-    fig.savefig(tmp, dpi=110)
-    for i in range(attempts):
-        try:
-            os.replace(tmp, path)
-            return
-        except OSError:
-            if i == attempts - 1:
-                raise
-            time.sleep(0.5)
-
-
 def fixed_transform(landmarks, width, height):
     """Median landmarks (raw px), template, and the one transform median anchors -> template."""
     px = np.array([width, height], dtype=np.float32)
@@ -424,18 +383,16 @@ def rebuild_rois(session_dir, out_dir, width, height):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--session", type=Path, default=DEFAULT_SESSION, help="session folder in raw_data/")
+    parser.add_argument("--session", required=True, help="session folder name (or path) in raw_data/")
     parser.add_argument("--rois-only", action="store_true",
                         help="only rebuild the ROIs from the saved landmarks (after editing ROIS / EYE_MARGIN)")
     args = parser.parse_args()
 
-    session_dir = args.session if args.session.is_absolute() else PROJECT_DIR / args.session
-    if not session_dir.is_dir():
-        sys.exit("ERROR: session folder not found: {}".format(session_dir))
+    session_dir = RAW_DIR / session_name(args.session)
     if not MODEL_PATH.is_file():
         sys.exit("ERROR: model not found: {}".format(MODEL_PATH))
     video_path = find_video(session_dir)
-    out_dir = OUTPUT_ROOT / session_dir.name
+    out_dir = PREPROCESSED_DIR / session_dir.name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     cap = cv2.VideoCapture(str(video_path))

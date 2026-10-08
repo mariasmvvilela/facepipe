@@ -5,14 +5,8 @@ raw_data/*
 !raw_data/.gitkeep
 preprocessed/*
 !preprocessed/.gitkeep
-stabilised_video/*
-!stabilised_video/.gitkeep
 facemap_output/*
 !facemap_output/.gitkeep
-mediapipe_output/*
-!mediapipe_output/.gitkeep
-openface_output/*
-!openface_output/.gitkeep
 trial_data/*
 !trial_data/.gitkeep
 
