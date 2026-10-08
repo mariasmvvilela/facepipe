@@ -50,7 +50,8 @@ DEFAULT_SESSION = "session_20260930_165233"   # same as st2
 
 HALF_WINDOW_S = 0.1   # window = trial timestamp +/- 100 ms
 PROGRESS_EVERY = 2000
-SPATIAL_ROIS = ["whole_face", "upper_face", "lower_face", "upper_face_no_eyes"]   # figure rows
+SPATIAL_ROIS = ["whole_face", "upper_face", "lower_face", "upper_face_no_eyes", "eye_band",
+                "brows_to_mid_nose", "mid_forehead_to_mid_nose"]   # figure rows
 HEATMAP_ALPHA = 0.6
 CROP_MARGIN_PX = 6     # figure cells show the ROIs' bounding box plus this margin
 

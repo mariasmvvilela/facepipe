@@ -250,7 +250,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", default=DEFAULT_SESSION,
                         help="session folder name (or path) in raw_data/")
-    SESSION = Path(parser.parse_args().session).name
+    parser.add_argument("--rois", nargs="+", default=ROIS,
+                        help="ROIs to use (default: {}); any other set writes to "
+                             "trial_data/<session>/<rois>/".format(" ".join(ROIS)))
+    args = parser.parse_args()
+    SESSION = Path(args.session).name
+    rois = list(dict.fromkeys(args.rois))
     SESSION_DIR = PROJECT_DIR / "raw_data" / SESSION
     TASK_CSV = SESSION_DIR / "task_events.csv"
     PRE_DIR = PROJECT_DIR / "preprocessed" / SESSION
@@ -259,6 +264,8 @@ def main():
     ROIS_PATH = PRE_DIR / "rois.npz"
     FACEMAP_DIR = PROJECT_DIR / "facemap_output" / SESSION
     OUTPUT_DIR = PROJECT_DIR / "trial_data" / SESSION
+    if rois != ROIS:
+        OUTPUT_DIR = OUTPUT_DIR / "+".join(rois)
 
     # --- Step 1: load --------------------------------------------------------------
     for path in (TASK_CSV, PRE_SUMMARY):
@@ -269,7 +276,7 @@ def main():
     fps = pre_summary["fps"]
 
     roi_pcs = {}
-    for roi in ROIS:
+    for roi in rois:
         path = FACEMAP_DIR / "{}_PCs.npy".format(roi)
         if path.is_file():
             roi_pcs[roi] = np.load(path)[:, :N_PCS]
@@ -277,7 +284,7 @@ def main():
             print("WARNING: no {} (run st2 for this ROI); skipping {}".format(
                 path.relative_to(PROJECT_DIR), roi))
     if not roi_pcs:
-        sys.exit("ERROR: none of {} has a _PCs.npy in {}".format(", ".join(ROIS), FACEMAP_DIR))
+        sys.exit("ERROR: none of {} has a _PCs.npy in {}".format(", ".join(rois), FACEMAP_DIR))
     frame_counts = {roi: pcs.shape[0] for roi, pcs in roi_pcs.items()}
     if len(set(frame_counts.values())) > 1:
         sys.exit("ERROR: frame counts differ between ROIs: {}".format(frame_counts))
@@ -397,8 +404,8 @@ def main():
     figure_path = OUTPUT_DIR / "event_motion_spatial.png"
     if FACE_VIDEO.is_file() and ROIS_PATH.is_file():
         all_masks = dict(np.load(ROIS_PATH))
-        spatial_masks = {n: all_masks[n] for n in ROIS if n in all_masks}
-        missing = [n for n in ROIS if n not in all_masks]
+        spatial_masks = {n: all_masks[n] for n in rois if n in all_masks}
+        missing = [n for n in rois if n not in all_masks]
         if missing:
             print("WARNING: not in rois.npz, left out of the figure: {}".format(", ".join(missing)))
         # Frames fidx-half_m .. fidx+half_m span 2 * half_m frame intervals = 200 ms; trials

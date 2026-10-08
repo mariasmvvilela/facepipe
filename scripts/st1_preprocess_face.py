@@ -90,6 +90,9 @@ LEFT_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387
 # Upper/lower split at mid-nose (195), below the eyes and their margin, so the eyes are in
 # upper_face as in Cazettes et al. (the nose bridge, 168, cuts through the top of the eyes).
 FOREHEAD_TOP, MID_NOSE, CHIN = 10, 195, 152
+BROWS_MID, NOSE_BRIDGE = 8, 197   # 8: between the brows; 197: nose bridge just below the eyes
+ABOVE_BROWS = 9                   # forehead, just above the brows
+MID_FOREHEAD = 151
 
 # Eye cut-out: the eye outline is the lid margin (median, i.e. open, eye), so this is the
 # visible eye only, plus a small margin for the lashes (fraction of the distance between
@@ -106,6 +109,9 @@ ROIS = {
     "upper_face":         (FOREHEAD_TOP, MID_NOSE, False),
     "lower_face":         (MID_NOSE, CHIN, False),
     "upper_face_no_eyes": (FOREHEAD_TOP, MID_NOSE, True),
+    "eye_band":           (BROWS_MID, NOSE_BRIDGE, False),
+    "brows_to_mid_nose":  (ABOVE_BROWS, MID_NOSE, False),
+    "mid_forehead_to_mid_nose": (MID_FOREHEAD, MID_NOSE, False),
 }
 
 
