@@ -1,13 +1,13 @@
 # facepipe
 
-Facial and eye analysis pipeline for predicting foraging site-leave decisions.
+Face-video pipeline for predicting foraging site-leave decisions.
 Human replication of Cazettes et al. (2025, Nature Neuroscience) — Mainen Lab.
 
 ## Overview
-Participants perform a probabilistic foraging task while face video and eye tracking
-data (Pupil Labs) are recorded. The pipeline extracts facial motion features using
-MediaPipe geometric stabilisation and FaceMap SVD decomposition, then uses
-accumulated trial-level features to predict leave decisions.
+Participants perform a probabilistic foraging task while a head-mounted camera records
+their face. The pipeline crops a fixed, landmark-aligned face video, extracts facial
+motion components per face region with FaceMap's motion SVD, accumulates them over each
+site visit, and tests whether they predict the decision to leave.
 
 ## Recording a session
 ```
@@ -27,33 +27,41 @@ and write a `raw_data/session_YYYYMMDD_HHMMSS_<task>/` folder: video, per-frame 
 Parse folder names with `name.split("_", 3)` → `["session", date, time, task]`.
 
 ## Pipeline stages
-Two branches turn the raw video into per-frame face features; both feed stage 4.
+Run each stage with `--session session_YYYYMMDD_HHMMSS_<task>` (a folder name in `raw_data/`,
+or its path).
 
 ```
-raw video ─┬─ st1 preprocess face ─ st2 FaceMap ──┬─ st4 trial features ─ st5 classify
-           └─ st2b OpenFace (own 3D alignment) ───┘
+raw_data ─ st1 preprocess face ─ st2 FaceMap ─ st3 trial features ─ st4 classify leave
+           preprocessed/          facemap_output/  trial_data/         trial_data/<session>/models/
 ```
 
-1. `st1_preprocess_face.py` — head-mounted camera sessions. MediaPipe landmarks on every frame;
-   stability check (stops if the face moved in the frame); one fixed crop to a 256×256
-   grayscale face video with the background greyed (`preprocessed/<session>/face.avi`); anatomical
-   ROI masks from the landmarks (`rois.npz`, preview in `roi_preview.png`). ROIs are defined in
-   `REGIONS` / `ROIS` at the top of the script: `whole_face`, `face_no_eyes` (visible eye only
-   removed), `face_no_eyes_or_lids`, `eyes`, `brows`,
-   `nose`, `mouth`.
-2. `st2_run_facemap.py` — FaceMap motion SVD, one run per ROI (`--rois`, default `whole_face
-   face_no_eyes`, or `all`); pixels outside each ROI are greyed so they contribute no motion
-2b. `st2b_run_openface.py` — OpenFace 2.2 action units, head pose and gaze from the raw video
-   *(optional; kept in case it is useful)*
-4. `st4_extract_trial_features.py` — align to task events, build accumulated feature matrix
-   *(not yet updated for the new st1/st2 outputs or the event-based task_events.csv)*
-5. `st5_classify_leave.py` — predict leave decision from face + eye features *(planned)*
+1. `st1_preprocess_face.py` — MediaPipe landmarks on every frame; stability check (stops if the
+   face moved in the frame); one fixed crop to a 256×256 grayscale face video with the
+   background greyed (`face.avi`); ROI masks from the median landmarks (`rois.npz`, preview in
+   `roi_preview.png`). `--rois-only` rebuilds just the ROIs after editing them.
+2. `st2_run_facemap.py` — FaceMap motion SVD, one run per ROI (`--rois`, default: the main
+   four, or `all`); pixels outside each ROI are greyed so they contribute no motion.
+   Writes `<roi>_PCs.npy` and plots of each ROI's motion and PC spatial masks.
+3. `st3_trial_features.py` — aligns trials to video frames, labels leave/stay, and builds
+   accumulated per-visit features (task + face PCs) for every ROI that has PCs.
+4. `st4_classify_leave.py` — elastic-net logistic regression on task only / face only /
+   task + face features, leave-one-visit-out AUC. `--rois` picks which ROIs' face features to
+   use (default: the main four), so ROI sets are compared without rebuilding features.
 
-Diagnostics (not part of the pipeline) live in `scripts/diagnostics/`: `plot_facemap_masks.py`
-(FaceMap spatial masks per ROI), `compare_au_head_pose.py`, `compare_facemap_openface.py`
-*(still expects the old st1/st3a outputs)*. Replaced scripts (old MediaPipe st1, stabilisation
-st2, rectangle-ROI st3a, camera-stability and head-pose diagnostics) are in `scripts/legacy/`
-for reference; they are not maintained and may need path fixes to run.
+ROIs are defined once, in `scripts/roi_definitions.py`: horizontal bands of the face between
+two MediaPipe landmarks, at full face width. `DEFAULT_ROIS` are the main analysis
+(`whole_face`, `upper_face`, `lower_face`, `upper_face_no_eyes`); the others are experimental
+bands within the upper face.
+
+Shared code: `common.py` (project paths, `--session` handling, figure saving) and `trials.py`
+(task run selection, trial → frame alignment, leave labels and site visits).
+
+Diagnostics (not part of the pipeline) live in `scripts/diagnostics/`:
+`event_motion.py` — raw pixel motion energy around each trial, leave vs stay, per ROI, with
+per-pixel maps; a check on the FaceMap features using plain motion.
+Replaced scripts (old MediaPipe st1, stabilisation, rectangle ROIs, OpenFace and its
+comparisons) are in `scripts/legacy/` for reference; they are not maintained and may need
+path fixes to run.
 
 ## Environment setup
 Requires conda and an NVIDIA GPU driver supporting CUDA 12.8+. To recreate the exact environment
@@ -77,15 +85,16 @@ The third line makes sure MediaPipe's full OpenCV build is the one in place
 
 ```
 facepipe_project/
-├── raw_data/              # original recordings (not tracked by git)
-├── stabilised_video/       # affine-stabilised face crops (not tracked)
-├── facemap_output/         # FaceMap SVD results (not tracked)
-├── mediapipe_output/       # landmark arrays and head pose (not tracked)
-├── openface_output/        # OpenFace action units, pose, gaze (not tracked)
-├── trial_data/             # trial-level feature matrices (not tracked)
-├── notebooks/              # exploratory Jupyter notebooks
-├── scripts/                # pipeline stages (st1–st5)
-│   └── diagnostics/        # quality checks and plots
+├── raw_data/               # recordings: video, frametimes, task_events.csv (not tracked by git)
+├── preprocessed/           # st1: face.avi, landmarks, ROI masks (not tracked)
+├── facemap_output/         # st2: FaceMap PCs and plots per ROI (not tracked)
+├── trial_data/             # st3 features, st4 model results (not tracked)
+├── notebooks/              # analysis notebooks
+├── scripts/                # pipeline stages st1–st4, recorders, shared modules
+│   ├── diagnostics/        # quality checks, not part of the pipeline
+│   └── legacy/             # replaced scripts, for reference
+├── task/                   # foraging tasks (see task/README.md)
+├── docs/                   # environment verification log
 ├── environment.yml         # conda environment specification
 └── requirements-lock.txt   # exact pinned pip versions
 ```

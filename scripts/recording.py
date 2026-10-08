@@ -449,7 +449,7 @@ def run_session(task_name, participant="", notes="", progress=default_progress, 
         print("  note: measured fps ({:.2f}) differs from the video file's fps ({:.2f}); "
               "use actual_fps / the frametimes file for timing.".format(actual_fps, writer_fps))
     print("\nNext step:")
-    print("  python scripts\\st1_mediapipe_landmarks.py --session {}".format(rel_session))
+    print("  python scripts\\st1_preprocess_face.py --session {}".format(rel_session))
 
 
 def main():

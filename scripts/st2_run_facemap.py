@@ -1,8 +1,8 @@
 """Pipeline stage 2: FaceMap motion SVD, one run per ROI from stage 1.
 
-FaceMap's motion-SVD ROIs are rectangles, but the stage-1 ROIs are anatomical shapes.
-So for each ROI this writes a temporary copy of preprocessed/<session>/face.avi,
-cropped to the ROI's bounding box with every pixel outside the ROI set to constant
+FaceMap's motion-SVD ROIs are rectangles, but the stage-1 ROIs follow the face oval
+(bands of the face; upper_face_no_eyes also has the eyes cut out). So for each ROI
+this writes a temporary copy of preprocessed/<session>/face.avi, cropped to the ROI's bounding box with every pixel outside the ROI set to constant
 grey, and runs FaceMap on that whole frame. Constant pixels have zero frame-to-frame
 difference, so they contribute no motion. The copy is lossless (FFV1), so no
 compression noise appears in the grey area; it is deleted afterwards.
@@ -28,21 +28,18 @@ Notes on the FaceMap 1.0.8 API (differs from older docs / the GUI):
   * FaceMap 1.0.8's utils.svdecon runs sklearn PCA on the (pixels x frames) matrix,
     which also subtracts each frame's mean over pixels. That forces every spatial
     mask to sum to zero over the whole box, so the constant grey pixels outside an
-    anatomical ROI get a large constant weight (43% of PC1's norm for face_no_eyes).
+    ROI get a large constant weight (43% of PC1's norm for an earlier face-minus-eyes ROI).
     FaceMap's earlier implementation (still in the source, commented out) did a plain
     SVD; svdecon_uncentred restores that, with the same randomized solver and seed.
 
 Usage (inside the facepipe env, from the project folder):
     python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task>
-    python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --rois whole_face mouth
+    python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --rois upper_face upper_face_no_eyes
     python scripts\\st2_run_facemap.py --session session_YYYYMMDD_HHMMSS_<task> --rois all
 """
 import argparse
 import json
-import os
 import sys
-import time
-from pathlib import Path
 
 import cv2
 import matplotlib
@@ -53,9 +50,9 @@ from sklearn.utils.extmath import randomized_svd
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_SESSION = "session_20260930_165233"
-DEFAULT_ROIS = ["whole_face", "face_no_eyes"]
+from common import FACEMAP_DIR, PREPROCESSED_DIR, PROJECT_DIR, save_figure, session_name  # noqa: E402
+from roi_definitions import DEFAULT_ROIS  # noqa: E402
+
 SBIN = 4
 N_COMPONENTS = 100
 MASK_GREY = 128          # same as stage 1
@@ -101,22 +98,6 @@ def roi_motion_sum_of_squares(video_path, rois, avgmotion):
         prev = binned
     cap.release()
     return totals
-
-
-def save_figure(fig, path, attempts=5):
-    """Save via a temp file + rename. On Windows an open image preview can briefly
-    hold the target, which makes a direct save fail (Errno 22)."""
-    tmp = path.with_name(path.stem + ".tmp.png")
-    fig.savefig(tmp, dpi=110)
-    plt.close(fig)
-    for i in range(attempts):
-        try:
-            os.replace(tmp, path)
-            return
-        except OSError:
-            if i == attempts - 1:
-                raise
-            time.sleep(0.5)
 
 
 def mean_face(video_path):
@@ -211,17 +192,16 @@ def write_roi_video(face_video, mask, out_path):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--session", default=DEFAULT_SESSION,
-                        help="session folder name (or path) in raw_data/")
+    parser.add_argument("--session", required=True, help="session folder name (or path) in raw_data/")
     parser.add_argument("--rois", nargs="+", default=DEFAULT_ROIS,
                         help="ROI names from stage 1's rois.npz, or 'all' (default: {})".format(
                             " ".join(DEFAULT_ROIS)))
     args = parser.parse_args()
-    session = Path(args.session).name
-    pre_dir = PROJECT_DIR / "preprocessed" / session
+    session = session_name(args.session)
+    pre_dir = PREPROCESSED_DIR / session
     face_video = pre_dir / "face.avi"
     rois_path = pre_dir / "rois.npz"
-    out_dir = PROJECT_DIR / "facemap_output" / session
+    out_dir = FACEMAP_DIR / session
     for p in (face_video, rois_path):
         if not p.is_file():
             sys.exit("ERROR: not found (run st1_preprocess_face.py first): {}".format(p))
@@ -245,7 +225,7 @@ def main():
         "variance_definition": "fraction of total sum of squares of mean-subtracted binned "
                                "ROI motion energy captured by each PC",
     })
-    # Keep ROIs from earlier st2 runs (e.g. --rois mouth after the defaults), but drop
+    # Keep ROIs from earlier st2 runs (e.g. a single --rois run after the defaults), but drop
     # entries left by the old rectangle-ROI stage, which have no box.
     summary["rois"] = {name: info for name, info in summary.get("rois", {}).items()
                        if "box_in_face_video" in info}
