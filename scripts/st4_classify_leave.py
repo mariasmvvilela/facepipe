@@ -30,6 +30,7 @@ from roi_definitions import DEFAULT_ROIS
 
 L1_RATIO = 0.5
 MAX_ITER = 10000       # saga converges slowly
+RANDOM_STATE = 0
 # sklearn >= 1.8 deprecates `penalty` (removed in 1.10): a float l1_ratio alone is elastic net.
 SKLEARN_VERSION = tuple(int(p) for p in re.findall(r"\d+", sklearn.__version__)[:2])
 PENALTY_KW = {} if SKLEARN_VERSION >= (1, 8) else {"penalty": "elasticnet"}
@@ -57,6 +58,12 @@ def feature_columns(names, rois):
     return task, face
 
 
+def make_model():
+    # saga visits samples in a random order: fix the seed so results are reproducible
+    return LogisticRegression(solver="saga", l1_ratio=L1_RATIO, max_iter=MAX_ITER,
+                              random_state=RANDOM_STATE, **PENALTY_KW)
+
+
 def leave_one_visit_out_auc(X, y, visits):
     """AUC on each held-out visit (model fit on all other visits); visits with one class skipped."""
     aucs = []
@@ -64,10 +71,22 @@ def leave_one_visit_out_auc(X, y, visits):
         test = visits == v
         if len(np.unique(y[test])) < 2:
             continue
-        model = LogisticRegression(solver="saga", l1_ratio=L1_RATIO, max_iter=MAX_ITER, **PENALTY_KW)
+        model = make_model()
         model.fit(X[~test], y[~test])
         aucs.append(roc_auc_score(y[test], model.predict_proba(X[test])[:, 1]))
     return np.array(aucs)
+
+
+def out_of_fold_proba(X, y, visits):
+    """P(leave) for every trial from a model fit on all other visits. Pooling these over
+    visits gives an AUC across visits; the per-visit AUC only ranks trials within a visit."""
+    proba = np.zeros(len(y))
+    for v in np.unique(visits):
+        test = visits == v
+        model = make_model()
+        model.fit(X[~test], y[~test])
+        proba[test] = model.predict_proba(X[test])[:, 1]
+    return proba
 
 
 def compare_models(X, y, visits, names, rois):
