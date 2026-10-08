@@ -16,7 +16,10 @@ Steps:
      anchor fit is reported alongside for comparison, but includes landmark noise.
   3. Clean video: one similarity transform from the median anchors onto a 256x256
      template, grayscale, everything outside the face oval set to grey.
-  4. ROIs: anatomical masks built from the median landmarks (see REGIONS / ROIS).
+  4. ROIs (as in Cazettes et al. 2025): horizontal bands of the face oval, bounded by
+     landmarks of the median face (see ROIS): whole_face, upper_face (forehead top to
+     mid-nose, eyes included), lower_face (mid-nose to chin), and upper_face_no_eyes (upper_face
+     with the visible eyes greyed, to separate brow / periorbital skin from blinks and gaze).
 
 Writes to preprocessed/<session>/:
     landmarks.npy        (n_frames, 478, 3) float32, normalised raw-image coords, NaN = no face
@@ -28,7 +31,7 @@ Writes to preprocessed/<session>/:
     roi_preview.png      every ROI outlined on the mean clean face
     summary.json         session metadata
 
-After editing REGIONS / ROIS, --rois-only rebuilds just the ROIs (and their preview)
+After editing ROIS / EYE_MARGIN, --rois-only rebuilds just the ROIs (and their preview)
 from the saved landmarks in a few seconds, without redoing MediaPipe or the video.
 
 Usage (inside the facepipe env, from the project folder):
@@ -84,35 +87,25 @@ FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365
              54, 103, 67, 109]
 RIGHT_EYE = [33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]
 LEFT_EYE = [263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]
-RIGHT_BROW = [46, 53, 52, 65, 55, 70, 63, 105, 66, 107]
-LEFT_BROW = [276, 283, 282, 295, 285, 300, 293, 334, 296, 336]
-LIPS_OUTER = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0,
-              37, 39, 40, 185]
-NOSE = [168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 98, 327, 64, 294, 48, 278, 129, 358, 49, 279]
+# Upper/lower split at mid-nose (195), below the eyes and their margin, so the eyes are in
+# upper_face as in Cazettes et al. (the nose bridge, 168, cuts through the top of the eyes).
+FOREHEAD_TOP, MID_NOSE, CHIN = 10, 195, 152
 
-# Regions: name -> (list of landmark outlines, each filled as its convex hull;
-# margin added around them, as a fraction of the distance between the eye centres).
-# The eye outline is the lid margin (median, i.e. open, eye), so "eyes" is the visible
-# eye only, with a small margin for the lashes; "eyes_and_lids" widens it to cover the
-# eyelids (upper lid up to the crease, lower lid).
-REGIONS = {
-    "face":  ([FACE_OVAL], 0.0),
-    "eyes":  ([RIGHT_EYE, LEFT_EYE], 0.05),
-    "eyes_and_lids": ([RIGHT_EYE, LEFT_EYE], 0.18),
-    "brows": ([RIGHT_BROW, LEFT_BROW], 0.05),
-    "nose":  ([NOSE], 0.03),
-    "mouth": ([LIPS_OUTER], 0.08),
-}
-# ROIs: name -> (regions added, regions removed). Every ROI is also limited to the face.
-# To add an ROI, add a line here (and a region above if needed); st2 picks them by name.
+# Eye cut-out: the eye outline is the lid margin (median, i.e. open, eye), so this is the
+# visible eye only, plus a small margin for the lashes (fraction of the distance between
+# the eye centres). The skin around the eyes stays in.
+EYE_MARGIN = 0.1
+
+# ROIs (as in Cazettes et al. 2025): horizontal bands of the face, full face width.
+# name -> (top landmark, bottom landmark, cut out the eyes). Each band runs from the top
+# landmark's row down to (not including) the bottom landmark's row, in the median face;
+# None = no limit on that side. Every ROI is limited to the face oval, so the band's
+# width is the face's width at each row. st2 picks ROIs by name.
 ROIS = {
-    "whole_face":   (["face"], []),
-    "face_no_eyes": (["face"], ["eyes"]),
-    "face_no_eyes_or_lids": (["face"], ["eyes_and_lids"]),
-    "eyes":         (["eyes"], []),
-    "brows":        (["brows"], []),
-    "nose":         (["nose"], []),
-    "mouth":        (["mouth"], []),
+    "whole_face":         (None, None, False),
+    "upper_face":         (FOREHEAD_TOP, MID_NOSE, False),
+    "lower_face":         (MID_NOSE, CHIN, False),
+    "upper_face_no_eyes": (FOREHEAD_TOP, MID_NOSE, True),
 }
 
 
@@ -300,20 +293,28 @@ def region_mask(lm_crop, outlines, margin_px):
     return mask.astype(bool)
 
 
+def landmark_row(lm_crop, idx):
+    return None if idx is None else int(round(lm_crop[idx, 1]))
+
+
 def build_rois(lm_crop):
+    """ROI masks from the median landmarks in crop coordinates. Returns (rois, face mask,
+    eye-centre distance, {roi: [first row, end row)} of each band)."""
     eye_dist = np.linalg.norm(lm_crop[RIGHT_EYE].mean(axis=0) - lm_crop[LEFT_EYE].mean(axis=0))
-    regions = {name: region_mask(lm_crop, outlines, frac * eye_dist)
-               for name, (outlines, frac) in REGIONS.items()}
-    regions["face"] = cv2.erode(regions["face"].astype(np.uint8), disk(FACE_ERODE_PX)).astype(bool)
-    rois = {}
-    for name, (add, remove) in ROIS.items():
-        m = np.zeros((OUT_SIZE, OUT_SIZE), dtype=bool)
-        for r in add:
-            m |= regions[r]
-        for r in remove:
-            m &= ~regions[r]
-        rois[name] = m & regions["face"]
-    return rois, regions["face"], eye_dist
+    face = cv2.erode(region_mask(lm_crop, [FACE_OVAL], 0).astype(np.uint8),
+                     disk(FACE_ERODE_PX)).astype(bool)
+    eyes = region_mask(lm_crop, [RIGHT_EYE, LEFT_EYE], EYE_MARGIN * eye_dist)
+    rows = np.arange(OUT_SIZE)[:, None]
+    rois, bands = {}, {}
+    for name, (top, bottom, no_eyes) in ROIS.items():
+        y0 = landmark_row(lm_crop, top)
+        y1 = landmark_row(lm_crop, bottom)
+        y0, y1 = (0 if y0 is None else y0), (OUT_SIZE if y1 is None else y1)
+        m = face & (rows >= y0) & (rows < y1)
+        if no_eyes:
+            m &= ~eyes
+        rois[name], bands[name] = m, [y0, y1]
+    return rois, face, eye_dist, bands
 
 
 def mean_video_frame(video_path, n_samples=300):
@@ -331,15 +332,18 @@ def mean_video_frame(video_path, n_samples=300):
     return acc / max(used, 1)
 
 
-def save_rois(out_dir, rois, eye_dist, mean_face, session_name):
+def save_rois(out_dir, rois, eye_dist, bands, mean_face, session_name):
     np.savez_compressed(out_dir / "rois.npz", **rois)
     roi_info = {
         "units": "pixels of face.avi ({0}x{0})".format(OUT_SIZE),
         "eye_centre_distance_px": round(float(eye_dist), 2),
-        "regions": {name: {"landmark_outlines": outlines, "margin_fraction_of_eye_distance": frac}
-                    for name, (outlines, frac) in REGIONS.items()},
-        "rois": {name: {"add": add, "remove": remove, "n_pixels": int(rois[name].sum())}
-                 for name, (add, remove) in ROIS.items()},
+        "eye_cutout": {"landmark_outlines": [RIGHT_EYE, LEFT_EYE],
+                       "margin_fraction_of_eye_distance": EYE_MARGIN},
+        "rois": {name: {"top_landmark": top, "bottom_landmark": bottom,
+                        "rows": "{} <= y < {}".format(*bands[name]),
+                        "eyes_cut_out": no_eyes, "within_face_oval": True,
+                        "n_pixels": int(rois[name].sum())}
+                 for name, (top, bottom, no_eyes) in ROIS.items()},
     }
     with open(out_dir / "rois.json", "w") as fh:
         json.dump(roi_info, fh, indent=2)
@@ -401,9 +405,9 @@ def rebuild_rois(session_dir, out_dir, width, height):
         if not (out_dir / name).is_file():
             sys.exit("ERROR: --rois-only needs a full st1 run first (missing {})".format(out_dir / name))
     median_lm, _, M = fixed_transform(np.load(out_dir / "landmarks.npy"), width, height)
-    rois, _, eye_dist = build_rois(transform_points(M, median_lm))
+    rois, _, eye_dist, bands = build_rois(transform_points(M, median_lm))
     print("ROIs (rebuilt from saved landmarks):")
-    save_rois(out_dir, rois, eye_dist, mean_video_frame(out_dir / "face.avi"), session_dir.name)
+    save_rois(out_dir, rois, eye_dist, bands, mean_video_frame(out_dir / "face.avi"), session_dir.name)
     summary_path = out_dir / "summary.json"
     if summary_path.is_file():
         summary = json.loads(summary_path.read_text())
@@ -416,7 +420,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--session", type=Path, default=DEFAULT_SESSION, help="session folder in raw_data/")
     parser.add_argument("--rois-only", action="store_true",
-                        help="only rebuild the ROIs from the saved landmarks (after editing REGIONS / ROIS)")
+                        help="only rebuild the ROIs from the saved landmarks (after editing ROIS / EYE_MARGIN)")
     args = parser.parse_args()
 
     session_dir = args.session if args.session.is_absolute() else PROJECT_DIR / args.session
@@ -477,14 +481,14 @@ def main():
 
     # 3. Clean face video + 4. ROIs (both from the median landmarks in crop coordinates)
     lm_crop = transform_points(M, median_lm)
-    rois, face_mask, eye_dist = build_rois(lm_crop)
+    rois, face_mask, eye_dist, bands = build_rois(lm_crop)
     print("\nStep 3/4: clean face video")
     mean_face, written = write_face_video(video_path, M, face_mask, fps, n_frames, out_dir / "face.avi")
     if written != n_frames:
         print("WARNING: wrote {} frames, landmarks have {}".format(written, n_frames))
 
     print("\nStep 4/4: ROIs")
-    save_rois(out_dir, rois, eye_dist, mean_face, session_dir.name)
+    save_rois(out_dir, rois, eye_dist, bands, mean_face, session_dir.name)
 
     summary = {
         "session_id": session_dir.name.removeprefix("session_"),
